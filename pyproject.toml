@@ -2,9 +2,7 @@
 name = "open_deep_research"
 version = "0.0.15"
 description = "Planning, research, and report generation."
-authors = [
-    { name = "Lance Martin" }
-]
+authors = [{ name = "Lance Martin" }]
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"
@@ -34,7 +32,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["mypy>=1.11.1", "ruff>=0.6.1"]
+dev = ["mypy>=1.11.1", "ruff>=0.6.1", "langgraph-cli[inmem]>=0.2.8"]
 
 [build-system]
 requires = ["setuptools>=73.0.0", "wheel"]
@@ -59,13 +57,7 @@ lint.select = [
     "T201",
     "UP",
 ]
-lint.ignore = [
-    "UP006",
-    "UP007",
-    "UP035",
-    "D417",
-    "E501",
-]
+lint.ignore = ["UP006", "UP007", "UP035", "D417", "E501"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["D", "UP"]
