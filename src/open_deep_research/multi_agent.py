@@ -1,22 +1,20 @@
-from typing import List, Annotated, TypedDict, operator, Literal
-from pydantic import BaseModel, Field
+from typing import Annotated, List, Literal, TypedDict, operator
 
 from langchain.chat_models import init_chat_model
-from langchain_core.tools import tool
 from langchain_core.runnables import RunnableConfig
-from langgraph.graph import MessagesState
-
+from langchain_core.tools import tool
+from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.types import Command, Send
-from langgraph.graph import START, END, StateGraph
+from pydantic import BaseModel, Field
 
 from open_deep_research.configuration import Configuration
-from open_deep_research.utils import get_config_value, tavily_search, duckduckgo_search
-from open_deep_research.prompts import SUPERVISOR_INSTRUCTIONS, RESEARCH_INSTRUCTIONS
+from open_deep_research.prompts import RESEARCH_INSTRUCTIONS, SUPERVISOR_INSTRUCTIONS
+from open_deep_research.utils import duckduckgo_search, get_config_value, tavily_search
 
 
 ## Tools factory - will be initialized based on configuration
 def get_search_tool(config: RunnableConfig):
-    """Get the appropriate search tool based on configuration"""
+    """Get the appropriate search tool based on configuration."""
     configurable = Configuration.from_runnable_config(config)
     search_api = get_config_value(configurable.search_api)
 
