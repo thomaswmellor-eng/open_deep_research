@@ -23,6 +23,7 @@ from langchain_core.tools import tool
 from langsmith import traceable
 
 from open_deep_research.state import Section
+from open_deep_research.mcp_servers import MCP_PROMPTS
     
 def get_config_value(value):
     """
@@ -1261,7 +1262,7 @@ async def duckduckgo_search(search_queries: List[str]):
         return "No valid search results found. Please try different search queries or use a different search API."
 
 @tool
-async def tavily_search(queries: List[str], max_results: int = 5, topic: str = "general") -> str:
+async def tavily_search(queries: List[str], max_results: int = 5) -> str:
     """
     Fetches results from Tavily search API.
     
@@ -1275,7 +1276,7 @@ async def tavily_search(queries: List[str], max_results: int = 5, topic: str = "
     search_results = await tavily_search_async(
         queries,
         max_results=max_results,
-        topic=topic,
+        topic="general",
         include_raw_content=True
     )
 
@@ -1344,3 +1345,19 @@ async def select_and_execute_search(search_api: str, query_list: list[str], para
         return deduplicate_and_format_sources(search_results, max_tokens_per_source=4000)
     else:
         raise ValueError(f"Unsupported search API: {search_api}")
+
+def get_combined_prompt(server_names):
+    """Combine prompts for the specified servers.
+    
+    Args:
+        server_names: List of server names to combine prompts for
+    
+    Returns:
+        A combined prompt string for all specified servers
+    """
+    prompts = []
+    for name in server_names:
+        if name in MCP_PROMPTS:
+            prompts.append(MCP_PROMPTS[name])
+    
+    return "\n".join(prompts)
