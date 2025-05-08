@@ -37,7 +37,9 @@ from open_deep_research.utils import (
 ## Nodes
 
 
-async def generate_report_plan(state: ReportState, config: RunnableConfig):
+async def generate_report_plan(
+    state: ReportState, config: RunnableConfig
+) -> Command[Literal["build_section_with_web_research"]]:
     """Generate the initial report plan with sections.
 
     This node:
@@ -517,7 +519,6 @@ builder.add_node(compile_final_report)
 
 # Add edges
 builder.add_edge(START, "generate_report_plan")
-builder.add_edge("generate_report_plan", "build_section_with_web_research")
 builder.add_edge("build_section_with_web_research", "gather_completed_sections")
 builder.add_conditional_edges(
     "gather_completed_sections",
