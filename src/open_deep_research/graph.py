@@ -3,7 +3,7 @@ from typing import Literal
 from langchain.chat_models import init_chat_model
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
-from langgraph.constants import Send
+from langgraph.constants import TAG_NOSTREAM, Send
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command
 
@@ -92,7 +92,7 @@ async def generate_report_plan(
     )
 
     # Generate queries
-    results = await structured_llm.ainvoke(
+    results = await structured_llm.with_config({"tags": [TAG_NOSTREAM]}).ainvoke(
         [
             SystemMessage(content=system_instructions_query),
             HumanMessage(
@@ -141,15 +141,14 @@ async def generate_report_plan(
 
     # Generate the report sections
     structured_llm = planner_llm.with_structured_output(Sections)
-    report_sections = await structured_llm.ainvoke(
+    report_sections = await structured_llm.with_config(
+        {"tags": [TAG_NOSTREAM]}
+    ).ainvoke(
         [
             SystemMessage(content=system_instructions_sections),
             HumanMessage(content=planner_message),
         ]
     )
-
-    # Get sections
-    sections = report_sections.sections
 
     return Command(
         goto=[
@@ -157,10 +156,10 @@ async def generate_report_plan(
                 "build_section_with_web_research",
                 {"topic": topic, "section": s, "search_iterations": 0},
             )
-            for s in sections
+            for s in report_sections.sections
             if s.research
         ],
-        update={"sections": sections, "topic": topic},
+        update={"sections": report_sections.sections, "topic": topic},
     )
 
 
@@ -202,7 +201,7 @@ async def generate_queries(state: SectionState, config: RunnableConfig):
     )
 
     # Generate queries
-    queries = await structured_llm.ainvoke(
+    queries = await structured_llm.with_config({"tags": [TAG_NOSTREAM]}).ainvoke(
         [
             SystemMessage(content=system_instructions),
             HumanMessage(content="Generate search queries on the provided topic."),
@@ -296,7 +295,7 @@ async def write_section(
         model_kwargs=writer_model_kwargs,
     )
 
-    section_content = await writer_model.ainvoke(
+    section_content = await writer_model.with_config({"tags": [TAG_NOSTREAM]}).ainvoke(
         [
             SystemMessage(content=section_writer_instructions),
             HumanMessage(content=section_writer_inputs_formatted),
@@ -337,7 +336,7 @@ async def write_section(
             model_kwargs=planner_model_kwargs,
         ).with_structured_output(Feedback)
     # Generate feedback
-    feedback = await reflection_model.ainvoke(
+    feedback = await reflection_model.with_config({"tags": [TAG_NOSTREAM]}).ainvoke(
         [
             SystemMessage(content=section_grader_instructions_formatted),
             HumanMessage(content=section_grader_message),
@@ -397,7 +396,7 @@ async def write_final_sections(state: SectionState, config: RunnableConfig):
         model_kwargs=writer_model_kwargs,
     )
 
-    section_content = await writer_model.ainvoke(
+    section_content = await writer_model.with_config({"tags": [TAG_NOSTREAM]}).ainvoke(
         [
             SystemMessage(content=system_instructions),
             HumanMessage(
@@ -511,11 +510,11 @@ builder = StateGraph(
     output=ReportStateOutput,
     config_schema=Configuration,
 )
-builder.add_node(generate_report_plan)
+builder.add_node("generate_report_plan", generate_report_plan)
 builder.add_node("build_section_with_web_research", section_builder.compile())
-builder.add_node(gather_completed_sections)
-builder.add_node(write_final_sections)
-builder.add_node(compile_final_report)
+builder.add_node("gather_completed_sections", gather_completed_sections)
+builder.add_node("write_final_sections", write_final_sections)
+builder.add_node("compile_final_report", compile_final_report)
 
 # Add edges
 builder.add_edge(START, "generate_report_plan")
