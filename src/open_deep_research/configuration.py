@@ -20,17 +20,17 @@ DEFAULT_REPORT_STRUCTURE = """Use this structure to create a report on the user-
 MODELS = [
     {
         "label": "Claude 3.7 Sonnet",
-        "value": "anthropic/claude-3-7-sonnet-latest",
+        "value": "anthropic:claude-3-7-sonnet-latest",
     },
     {
         "label": "Claude 3.5 Sonnet",
-        "value": "anthropic/claude-3-5-sonnet-latest",
+        "value": "anthropic:claude-3-5-sonnet-latest",
     },
-    {"label": "GPT 4o", "value": "openai/gpt-4o"},
-    {"label": "GPT 4.1", "value": "openai/gpt-4.1"},
-    {"label": "o3", "value": "openai/o3"},
-    {"label": "o3 mini", "value": "openai/o3-mini"},
-    {"label": "o4", "value": "openai/o4"},
+    {"label": "GPT 4o", "value": "openai:gpt-4o"},
+    {"label": "GPT 4.1", "value": "openai:gpt-4.1"},
+    {"label": "o3", "value": "openai:o3"},
+    {"label": "o3 mini", "value": "openai:o3-mini"},
+    {"label": "o4", "value": "openai:o4"},
 ]
 
 
@@ -149,12 +149,12 @@ class Configuration(BaseModel):
     )
 
     planner_model: str = Field(
-        default="anthropic/claude-3-7-sonnet-latest",
+        default="anthropic:claude-3-7-sonnet-latest",
         json_schema_extra={
             "metadata": {
                 "x_lg_ui_config": {
                     "type": "select",
-                    "default": "anthropic/claude-3-7-sonnet-latest",
+                    "default": "anthropic:claude-3-7-sonnet-latest",
                     "description": "The model to use for the planner agent",
                     "options": MODELS,
                 }
@@ -176,12 +176,12 @@ class Configuration(BaseModel):
     )
 
     writer_model: str = Field(
-        default="anthropic/claude-3-5-sonnet-latest",
+        default="anthropic:claude-3-5-sonnet-latest",
         json_schema_extra={
             "metadata": {
                 "x_lg_ui_config": {
                     "type": "select",
-                    "default": "anthropic/claude-3-5-sonnet-latest",
+                    "default": "anthropic:claude-3-5-sonnet-latest",
                     "description": "The model to use for the writer agent",
                     "options": MODELS,
                 }
