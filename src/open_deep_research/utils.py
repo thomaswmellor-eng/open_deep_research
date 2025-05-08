@@ -24,9 +24,7 @@ from open_deep_research.state import Section
 
 
 def get_config_value(value):
-    """
-    Helper function to handle string, dict, and enum cases of configuration values
-    """
+    """Helper function to handle string, dict, and enum cases of configuration values."""
     if isinstance(value, str):
         return value
     elif isinstance(value, dict):
@@ -38,8 +36,7 @@ def get_config_value(value):
 def get_search_params(
     search_api: str, search_api_config: Optional[Dict[str, Any]]
 ) -> Dict[str, Any]:
-    """
-    Filters the search_api_config dictionary to include only parameters accepted by the specified search API.
+    """Filters the search_api_config dictionary to include only parameters accepted by the specified search API.
 
     Args:
         search_api (str): The search API identifier (e.g., "exa", "tavily").
@@ -158,8 +155,7 @@ async def tavily_search_async(
     topic: str = "general",
     include_raw_content: bool = True,
 ):
-    """
-    Performs concurrent web searches with the Tavily API
+    """Performs concurrent web searches with the Tavily API
 
     Args:
         search_queries (List[str]): List of search queries to process
@@ -226,7 +222,6 @@ def perplexity_search(search_queries):
                 ]
             }
     """
-
     headers = {
         "accept": "application/json",
         "content-type": "application/json",
