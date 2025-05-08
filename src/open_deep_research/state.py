@@ -1,6 +1,8 @@
 import operator
 from typing import Annotated, List, Literal, TypedDict
 
+from langchain_core.messages import AnyMessage
+from langgraph.graph import add_messages
 from pydantic import BaseModel, Field
 
 
@@ -43,14 +45,15 @@ class Feedback(BaseModel):
 
 
 class ReportStateInput(TypedDict):
-    topic: str  # Report topic
+    messages: Annotated[list[AnyMessage], add_messages]
 
 
 class ReportStateOutput(TypedDict):
-    final_report: str  # Final report
+    messages: Annotated[list[AnyMessage], add_messages]
 
 
 class ReportState(TypedDict):
+    messages: Annotated[list[AnyMessage], add_messages]
     topic: str  # Report topic
     feedback_on_report_plan: str  # Feedback on the report plan
     sections: list[Section]  # List of report sections
@@ -58,7 +61,6 @@ class ReportState(TypedDict):
     report_sections_from_research: (
         str  # String of any completed sections from research to write final sections
     )
-    final_report: str  # Final report
 
 
 class SectionState(TypedDict):

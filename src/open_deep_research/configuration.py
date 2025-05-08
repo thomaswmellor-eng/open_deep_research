@@ -1,10 +1,8 @@
 import os
-from dataclasses import dataclass, fields
-from enum import Enum
 from typing import Any, Dict, Optional
 
-from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.runnables import RunnableConfig
+from pydantic import BaseModel, Field
 
 DEFAULT_REPORT_STRUCTURE = """Use this structure to create a report on the user-provided topic:
 
@@ -19,50 +17,189 @@ DEFAULT_REPORT_STRUCTURE = """Use this structure to create a report on the user-
    - Provide a concise summary of the report"""
 
 
-class SearchAPI(Enum):
-    PERPLEXITY = "perplexity"
-    TAVILY = "tavily"
-    EXA = "exa"
-    ARXIV = "arxiv"
-    PUBMED = "pubmed"
-    LINKUP = "linkup"
-    DUCKDUCKGO = "duckduckgo"
-    GOOGLESEARCH = "googlesearch"
+MODELS = [
+    {
+        "label": "Claude 3.7 Sonnet",
+        "value": "anthropic/claude-3-7-sonnet-latest",
+    },
+    {
+        "label": "Claude 3.5 Sonnet",
+        "value": "anthropic/claude-3-5-sonnet-latest",
+    },
+    {"label": "GPT 4o", "value": "openai/gpt-4o"},
+    {"label": "GPT 4.1", "value": "openai/gpt-4.1"},
+    {"label": "o3", "value": "openai/o3"},
+    {"label": "o3 mini", "value": "openai/o3-mini"},
+    {"label": "o4", "value": "openai/o4"},
+]
 
 
-@dataclass(kw_only=True)
-class Configuration:
+SEARCH = [
+    {
+        "label": "Perplexity",
+        "value": "perplexity",
+    },
+    {
+        "label": "Tavily",
+        "value": "tavily",
+    },
+    {
+        "label": "Exa",
+        "value": "exa",
+    },
+    {
+        "label": "Arxiv",
+        "value": "arxiv",
+    },
+    {
+        "label": "Pubmed",
+        "value": "pubmed",
+    },
+    {
+        "label": "Linkup",
+        "value": "linkup",
+    },
+    {
+        "label": "DuckDuckGo",
+        "value": "duckduckgo",
+    },
+    {
+        "label": "Google",
+        "value": "googlesearch",
+    },
+]
+
+
+class Configuration(BaseModel):
     """The configurable fields for the chatbot."""
 
     # Common configuration
-    report_structure: str = (
-        DEFAULT_REPORT_STRUCTURE  # Defaults to the default report structure
+    report_structure: str = Field(
+        default=DEFAULT_REPORT_STRUCTURE,
+        json_schema_extra={
+            "metadata": {
+                "x_lg_ui_config": {
+                    "type": "textarea",
+                    "placeholder": "Enter a report structure...",
+                    "description": "The report structure to use for research",
+                    "default": DEFAULT_REPORT_STRUCTURE,
+                }
+            }
+        },
     )
-    search_api: SearchAPI = SearchAPI.TAVILY  # Default to TAVILY
-    search_api_config: Optional[Dict[str, Any]] = None
+
+    search_api: str = Field(
+        default="tavily",
+        json_schema_extra={
+            "metadata": {
+                "x_lg_ui_config": {
+                    "type": "select",
+                    "default": "tavily",
+                    "description": "The search api to use for research",
+                    "options": SEARCH,
+                }
+            }
+        },
+    )
+
+    search_api_config: Optional[Dict[str, Any]] = Field(
+        default=None,
+        json_schema_extra={
+            "metadata": {
+                "x_lg_ui_config": {
+                    "type": "json",
+                    "placeholder": "Enter a search api config...",
+                    "description": "The search api config to use for research",
+                }
+            }
+        },
+    )
 
     # Graph-specific configuration
-    number_of_queries: int = 2  # Number of search queries to generate per iteration
-    max_search_depth: int = 2  # Maximum number of reflection + search iterations
-    planner_provider: str = "anthropic"  # Defaults to Anthropic as provider
-    planner_model: str = (
-        "claude-3-7-sonnet-latest"  # Defaults to claude-3-7-sonnet-latest
+    number_of_queries: int = Field(
+        default=2,
+        json_schema_extra={
+            "metadata": {
+                "x_lg_ui_config": {
+                    "type": "slider",
+                    "min": 1,
+                    "max": 5,
+                    "step": 1,
+                    "default": 1,
+                    "description": "Number of search queries to generate per iteration",
+                }
+            }
+        },
     )
-    planner_model_kwargs: Optional[Dict[str, Any]] = None  # kwargs for planner_model
-    writer_provider: str = "anthropic"  # Defaults to Anthropic as provider
-    writer_model: str = (
-        "claude-3-5-sonnet-latest"  # Defaults to claude-3-5-sonnet-latest
-    )
-    writer_model_kwargs: Optional[Dict[str, Any]] = None  # kwargs for writer_model
-    search_api: SearchAPI = SearchAPI.TAVILY  # Default to TAVILY
-    search_api_config: Optional[Dict[str, Any]] = None
 
-    # Multi-agent specific configuration
-    supervisor_model: str = (
-        "openai:gpt-4.1"  # Model for supervisor agent in multi-agent setup
+    max_search_depth: int = Field(
+        default=2,
+        json_schema_extra={
+            "metadata": {
+                "x_lg_ui_config": {
+                    "type": "slider",
+                    "min": 1,
+                    "max": 5,
+                    "step": 1,
+                    "default": 2,
+                    "description": "Maximum number of reflection + search iterations",
+                }
+            }
+        },
     )
-    researcher_model: str = (
-        "openai:gpt-4.1"  # Model for research agents in multi-agent setup
+
+    planner_model: str = Field(
+        default="anthropic/claude-3-7-sonnet-latest",
+        json_schema_extra={
+            "metadata": {
+                "x_lg_ui_config": {
+                    "type": "select",
+                    "default": "anthropic/claude-3-7-sonnet-latest",
+                    "description": "The model to use for the planner agent",
+                    "options": MODELS,
+                }
+            }
+        },
+    )
+
+    planner_model_kwargs: Optional[Dict[str, Any]] = Field(
+        default=None,
+        json_schema_extra={
+            "metadata": {
+                "x_lg_ui_config": {
+                    "type": "json",
+                    "placeholder": "Enter a planner model kwargs...",
+                    "description": "The planner model kwargs to use for research",
+                }
+            }
+        },
+    )
+
+    writer_model: str = Field(
+        default="anthropic/claude-3-5-sonnet-latest",
+        json_schema_extra={
+            "metadata": {
+                "x_lg_ui_config": {
+                    "type": "select",
+                    "default": "anthropic/claude-3-5-sonnet-latest",
+                    "description": "The model to use for the writer agent",
+                    "options": MODELS,
+                }
+            }
+        },
+    )
+
+    writer_model_kwargs: Optional[Dict[str, Any]] = Field(
+        default=None,
+        json_schema_extra={
+            "metadata": {
+                "x_lg_ui_config": {
+                    "type": "json",
+                    "placeholder": "Enter a writer model kwargs...",
+                    "description": "The writer model kwargs to use for research",
+                }
+            }
+        },
     )
 
     @classmethod
@@ -74,8 +211,7 @@ class Configuration:
             config["configurable"] if config and "configurable" in config else {}
         )
         values: dict[str, Any] = {
-            f.name: os.environ.get(f.name.upper(), configurable.get(f.name))
-            for f in fields(cls)
-            if f.init
+            f: os.environ.get(f.upper(), configurable.get(f))
+            for f in cls.model_fields.keys()
         }
         return cls(**{k: v for k, v in values.items() if v})
