@@ -11,6 +11,7 @@ from langgraph.types import Command
 
 from open_deep_research.configuration import Configuration
 from open_deep_research.prompts import (
+    FINAL_SECTION_WRITER_INSTRUCTIONS,
     QUERY_WRITER_INSTRUCTIONS,
     SECTION_GRADER_INSTRUCTIONS,
     SECTION_WRITER_INPUTS,
@@ -196,6 +197,54 @@ async def write_section(
             update={"search_queries": feedback.follow_up_queries, "section": section},
             goto="search_web",
         )
+
+
+async def write_final_sections(
+    state: SectionState, config: RunnableConfig
+) -> SectionState:
+    """Write sections that don't require research using completed sections as context.
+
+    This node handles sections like conclusions or summaries that build on
+    the researched sections rather than requiring direct research.
+
+    Args:
+        state: Current state with completed sections as context
+        config: Configuration for the writing model
+
+    Returns:
+        Dict containing the newly written section
+    """
+    # Get state
+    topic = state["topic"]
+    section = state["section"]
+    completed_report_sections = state["report_sections_from_research"]
+
+    # Generate section
+    section_content = (
+        await Configuration.init_chat_model("writer_model", config)
+        .with_config(CONFIG_NO_STREAM)
+        .ainvoke(
+            [
+                SystemMessage(
+                    FINAL_SECTION_WRITER_INSTRUCTIONS.format(
+                        topic=topic,
+                        section_name=section.name,
+                        section_topic=section.description,
+                        context=completed_report_sections,
+                    )
+                ),
+                HumanMessage(
+                    "Generate a report section based on the provided sources."
+                ),
+            ]
+        )
+    )
+
+    # Write content to section
+    section.content = section_content.text()
+
+    # Write the updated section to completed sections
+    return {"completed_sections": [section]}
 
 
 # Report section sub-graph
