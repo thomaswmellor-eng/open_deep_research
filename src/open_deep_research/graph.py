@@ -34,7 +34,6 @@ from open_deep_research.state import (
 from open_deep_research.utils import (
     find_tool_call,
     format_sections,
-    get_search_params,
     select_and_execute_search,
 )
 
@@ -72,6 +71,9 @@ async def converse(
         )
 
     if find_tool_call(message, StartResearch):
+        # Start generation of report
+        # (1) Schedule research + write of sections that require research
+        # (2) After gathering those, write the final sections to complete the artifact
         return Command(
             goto=[
                 Send(
@@ -142,10 +144,8 @@ async def generate_report_plan(
     # Search the web with parameters
     source_str = await select_and_execute_search(
         configurable.search_api,
+        configurable.search_api_config,
         [query.search_query for query in search_queries.queries],
-        get_search_params(
-            configurable.search_api, configurable.search_api_config or {}
-        ),
     )
 
     # Generate the report sections
@@ -156,7 +156,7 @@ async def generate_report_plan(
         .ainvoke(
             [
                 SystemMessage(
-                    content=REPORT_PLANNER_INSTRUCTIONS.format(
+                    REPORT_PLANNER_INSTRUCTIONS.format(
                         topic=topic,
                         report_organization=report_organization,
                         context=source_str,
@@ -181,6 +181,40 @@ async def generate_report_plan(
         "topic": topic,
         "sections": report_sections.sections,
     }
+
+
+def gather_completed_sections(
+    state: ReportState,
+) -> Command[Literal["write_final_sections"]]:
+    """Format completed sections as context for writing final sections.
+
+    This node takes all completed research sections and formats them into
+    a single context string for writing summary sections.
+
+    Args:
+        state: Current state with completed sections
+
+    Returns:
+        Dict with formatted sections as context
+    """
+    # Format completed section to str to use as context for final sections
+    completed_report_sections = format_sections(state["completed_sections"])
+
+    return Command(
+        goto=[
+            Send(
+                "write_final_sections",
+                {
+                    "topic": state["topic"],
+                    "section": s,
+                    "report_sections_from_research": completed_report_sections,
+                },
+            )
+            for s in state["sections"]
+            if not s.research
+        ],
+        update={"report_sections_from_research": completed_report_sections},
+    )
 
 
 async def write_final_sections(
@@ -229,40 +263,6 @@ async def write_final_sections(
 
     # Write the updated section to completed sections
     return {"completed_sections": [section]}
-
-
-def gather_completed_sections(
-    state: ReportState,
-) -> Command[Literal["write_final_sections"]]:
-    """Format completed sections as context for writing final sections.
-
-    This node takes all completed research sections and formats them into
-    a single context string for writing summary sections.
-
-    Args:
-        state: Current state with completed sections
-
-    Returns:
-        Dict with formatted sections as context
-    """
-    # Format completed section to str to use as context for final sections
-    completed_report_sections = format_sections(state["completed_sections"])
-
-    return Command(
-        goto=[
-            Send(
-                "write_final_sections",
-                {
-                    "topic": state["topic"],
-                    "section": s,
-                    "report_sections_from_research": completed_report_sections,
-                },
-            )
-            for s in state["sections"]
-            if not s.research
-        ],
-        update={"report_sections_from_research": completed_report_sections},
-    )
 
 
 def compile_final_report(state: ReportState) -> ReportState:
@@ -315,6 +315,7 @@ builder.add_node("compile_final_report", compile_final_report)
 
 # Add edges
 builder.add_edge(START, "converse")
+builder.add_edge("generate_report_plan", "converse")
 builder.add_edge("build_section_with_web_research", "gather_completed_sections")
 builder.add_edge("write_final_sections", "compile_final_report")
 builder.add_edge("compile_final_report", END)

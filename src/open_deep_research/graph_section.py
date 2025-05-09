@@ -23,7 +23,6 @@ from open_deep_research.state import (
     SectionState,
 )
 from open_deep_research.utils import (
-    get_search_params,
     select_and_execute_search,
 )
 
@@ -99,10 +98,8 @@ async def search_web(state: SectionState, config: RunnableConfig) -> SectionStat
     # Search the web with parameters
     source_str = await select_and_execute_search(
         configurable.search_api,
+        configurable.search_api_config,
         [query.search_query for query in search_queries],
-        get_search_params(
-            configurable.search_api, configurable.search_api_config or {}
-        ),
     )
 
     return {
@@ -144,7 +141,7 @@ async def write_section(
         .with_config(CONFIG_NO_STREAM)
         .ainvoke(
             [
-                SystemMessage(content=SECTION_WRITER_INSTRUCTIONS),
+                SystemMessage(SECTION_WRITER_INSTRUCTIONS),
                 HumanMessage(
                     SECTION_WRITER_INPUTS.format(
                         topic=topic,

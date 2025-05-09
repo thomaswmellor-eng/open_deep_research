@@ -1433,7 +1433,9 @@ async def tavily_search(queries: List[str]) -> str:
 
 
 async def select_and_execute_search(
-    search_api: str, query_list: list[str], params_to_pass: dict
+    search_api: str,
+    search_api_config: Optional[Dict[str, Any]],
+    query_list: list[str],
 ) -> str:
     """Select and execute the appropriate search API.
 
@@ -1448,6 +1450,8 @@ async def select_and_execute_search(
     Raises:
         ValueError: If an unsupported search API is specified
     """
+    params_to_pass = get_search_params(search_api, search_api_config)
+
     if search_api == "tavily":
         # Tavily search tool used with both workflow and agent
         return await tavily_search.ainvoke({"queries": query_list}, **params_to_pass)
