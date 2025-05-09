@@ -61,7 +61,7 @@ async def generate_report_plan(state: ReportState, config: RunnableConfig):
         Dict containing the generated sections
     """
     # Inputs
-    topic = state["messages"][-1].content
+    topic = state["topic"]
     feedback = state.get("feedback_on_report_plan", None)
 
     # Get configuration
@@ -155,7 +155,7 @@ async def generate_report_plan(state: ReportState, config: RunnableConfig):
         ]
     )
 
-    return {"sections": report_sections.sections, "topic": topic}
+    return {"sections": report_sections.sections}
 
 
 async def generate_queries(state: SectionState, config: RunnableConfig):
