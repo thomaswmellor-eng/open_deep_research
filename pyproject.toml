@@ -29,6 +29,7 @@ dependencies = [
     "pytest",
     "httpx>=0.24.0",
     "markdownify>=0.11.6",
+    "langchain-ollama>=0.3.2",
 ]
 
 [project.optional-dependencies]
