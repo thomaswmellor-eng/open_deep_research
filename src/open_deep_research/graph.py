@@ -508,10 +508,11 @@ def find_tool_call(message: BaseMessage | None, model: type):
 
 
 async def converse(state: ReportState) -> ReportState:
-    model = init_chat_model("openai:gpt-4o-mini").bind_tools(
-        [GenerateOrRefineReport, StartResearch]
-    )
+    tools: list[ToolCall] = [GenerateOrRefineReport]
+    if state["sections"] or state["topic"]:
+        tools.append(StartResearch)
 
+    model = init_chat_model("openai:gpt-4o-mini").bind_tools(tools)
     message: AIMessage = await model.ainvoke(
         [
             SystemMessage("You are an assistant that aids user to create a report."),
