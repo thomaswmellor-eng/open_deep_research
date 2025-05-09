@@ -1,7 +1,10 @@
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Literal, Optional
 
+from langchain.chat_models import init_chat_model
+from langchain_core.language_models import BaseChatModel
 from langchain_core.runnables import RunnableConfig
+from langgraph.constants import TAG_NOSTREAM
 from pydantic import BaseModel, Field
 
 DEFAULT_REPORT_STRUCTURE = """Use this structure to create a report on the user-provided topic:
@@ -148,6 +151,33 @@ class Configuration(BaseModel):
         },
     )
 
+    converse_model: str = Field(
+        default="openai:gpt-4o-mini",
+        json_schema_extra={
+            "metadata": {
+                "x_lg_ui_config": {
+                    "type": "select",
+                    "default": "openai:gpt-4o-mini",
+                    "description": "The model to use for conversation",
+                    "options": MODELS,
+                }
+            }
+        },
+    )
+
+    converse_model_kwargs: Optional[Dict[str, Any]] = Field(
+        default=None,
+        json_schema_extra={
+            "metadata": {
+                "x_lg_ui_config": {
+                    "type": "json",
+                    "placeholder": "Enter converse model kwargs...",
+                    "description": "The converse model kwargs to use for research",
+                }
+            }
+        },
+    )
+
     planner_model: str = Field(
         default="anthropic:claude-3-7-sonnet-latest",
         json_schema_extra={
@@ -168,7 +198,7 @@ class Configuration(BaseModel):
             "metadata": {
                 "x_lg_ui_config": {
                     "type": "json",
-                    "placeholder": "Enter a planner model kwargs...",
+                    "placeholder": "Enter planner model kwargs...",
                     "description": "The planner model kwargs to use for research",
                 }
             }
@@ -215,3 +245,26 @@ class Configuration(BaseModel):
             for f in cls.model_fields.keys()
         }
         return cls(**{k: v for k, v in values.items() if v})
+
+    @classmethod
+    def init_chat_model(
+        cls,
+        model_name: Literal["writer_model", "planner_model", "converse_model"],
+        config: Optional[RunnableConfig],
+    ) -> BaseChatModel:
+        configuration = cls.from_runnable_config(config)
+        config_model_name = getattr(configuration, model_name)
+        config_model_kwargs = {
+            **(
+                {
+                    "max_tokens": 20_000,
+                    "thinking": {"type": "enabled", "budget_tokens": 16_000},
+                }
+                if model_name == "planner_model"
+                and config_model_name.endswith("claude-3-7-sonnet-latest")
+                else {}
+            ),
+            **(getattr(configuration, f"{model_name}_kwargs", None) or {}),
+        }
+
+        return init_chat_model(model=model_name, **config_model_kwargs)

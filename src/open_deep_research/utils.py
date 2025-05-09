@@ -3,7 +3,7 @@ import concurrent
 import os
 import random
 import time
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, cast
 from urllib.parse import unquote
 
 import aiohttp
@@ -14,6 +14,7 @@ from duckduckgo_search import DDGS
 from exa_py import Exa
 from langchain_community.retrievers import ArxivRetriever
 from langchain_community.utilities.pubmed import PubMedAPIWrapper
+from langchain_core.messages import AIMessage, BaseMessage, ToolCall
 from langchain_core.tools import tool
 from langsmith import traceable
 from linkup import LinkupClient
@@ -21,6 +22,16 @@ from markdownify import markdownify
 from tavily import AsyncTavilyClient
 
 from open_deep_research.state import Section
+
+
+def find_tool_call(message: BaseMessage | None, model: type):
+    """Find a tool call based on schema."""
+    if not message or not isinstance(message, AIMessage):
+        return None
+    return cast(
+        ToolCall | None,
+        next([call for call in message.tool_calls if call["name"] == model.__name__]),
+    )
 
 
 def get_search_params(

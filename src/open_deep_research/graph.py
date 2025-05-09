@@ -1,9 +1,7 @@
-from typing import Literal, cast
+from typing import Literal
 
-from langchain.chat_models import init_chat_model
 from langchain_core.messages import (
     AIMessage,
-    BaseMessage,
     HumanMessage,
     SystemMessage,
     ToolCall,
@@ -36,6 +34,7 @@ from open_deep_research.state import (
     StartResearch,
 )
 from open_deep_research.utils import (
+    find_tool_call,
     format_sections,
     get_search_params,
     select_and_execute_search,
@@ -47,17 +46,22 @@ CONFIG_NO_STREAM = {"tags": [TAG_NOSTREAM]}
 ## Nodes
 
 
-async def converse(state: ReportState) -> ReportState:
+async def converse(state: ReportState, config: RunnableConfig) -> ReportState:
     tools: list[ToolCall] = [GenerateOrRefineReport]
     if state["sections"] or state["topic"]:
         tools.append(StartResearch)
 
-    model = init_chat_model("openai:gpt-4o-mini").bind_tools(tools)
-    message: AIMessage = await model.ainvoke(
-        [
-            SystemMessage("You are an assistant that aids user to create a report."),
-            *state["messages"],
-        ]
+    message: AIMessage = (
+        await Configuration.init_chat_model("converse_model", config)
+        .bind_tools(tools)
+        .ainvoke(
+            [
+                SystemMessage(
+                    "You are an assistant that aids user to create a report."
+                ),
+                *state["messages"],
+            ]
+        )
     )
 
     if report_tool_call := find_tool_call(message, GenerateOrRefineReport):
@@ -120,10 +124,7 @@ async def generate_report_plan(
 
     # Generate queries
     search_queries: SearchQueries = (
-        await init_chat_model(
-            model=configurable.writer_model_name,
-            **(configurable.writer_model_kwargs or {}),
-        )
+        await Configuration.init_chat_model("writer_model", config)
         .with_structured_output(SearchQueries)
         .with_config(CONFIG_NO_STREAM)
         .ainvoke(
@@ -153,20 +154,7 @@ async def generate_report_plan(
 
     # Generate the report sections
     report_sections = (
-        await init_chat_model(
-            model=configurable.planner_model,
-            max_tokens=20_000,
-            thinking={"type": "enabled", "budget_tokens": 16_000},
-            **(
-                {
-                    "max_tokens": 20_000,
-                    "thinking": {"type": "enabled", "budget_tokens": 16_000},
-                }
-                if configurable.planner_model.endswith("claude-3-7-sonnet-latest")
-                else {}
-            ),
-            **(configurable.planner_model_kwargs or {}),
-        )
+        await Configuration.init_chat_model("planner_model", config)
         .with_structured_output(Sections)
         .with_config(CONFIG_NO_STREAM)
         .ainvoke(
@@ -212,9 +200,7 @@ async def generate_queries(state: SectionState, config: RunnableConfig) -> Secti
 
     # Generate queries
     queries = (
-        await init_chat_model(
-            model=configurable.writer_model, **(configurable.writer_model_kwargs or {})
-        )
+        await Configuration.init_chat_model("writer_model", config)
         .with_structured_output(SearchQueries)
         .with_config(CONFIG_NO_STREAM)
         .ainvoke(
@@ -299,10 +285,7 @@ async def write_section(
 
     # Generate section
     section_content = (
-        await init_chat_model(
-            model=configurable.writer_model,
-            **(configurable.writer_model_kwargs or {}),
-        )
+        await Configuration.init_chat_model("writer_model", config)
         .with_config(CONFIG_NO_STREAM)
         .ainvoke(
             [
@@ -325,18 +308,7 @@ async def write_section(
 
     # Generate feedback
     feedback = (
-        await init_chat_model(
-            model=configurable.planner_model,
-            **(
-                {
-                    "max_tokens": 20_000,
-                    "thinking": {"type": "enabled", "budget_tokens": 16_000},
-                }
-                if configurable.planner_model.endswith("claude-3-7-sonnet-latest")
-                else {}
-            ),
-            **(configurable.planner_model_kwargs or {}),
-        )
+        await Configuration.init_chat_model("planner_model", config)
         .with_structured_output(Feedback)
         .with_config(CONFIG_NO_STREAM)
         .ainvoke(
@@ -387,9 +359,6 @@ async def write_final_sections(state: SectionState, config: RunnableConfig):
     Returns:
         Dict containing the newly written section
     """
-    # Get configuration
-    configurable = Configuration.from_runnable_config(config)
-
     # Get state
     topic = state["topic"]
     section = state["section"]
@@ -397,9 +366,7 @@ async def write_final_sections(state: SectionState, config: RunnableConfig):
 
     # Generate section
     section_content = (
-        await init_chat_model(
-            model=configurable.writer_model, **(configurable.writer_model_kwargs or {})
-        )
+        await Configuration.init_chat_model("writer_model", config)
         .with_config(CONFIG_NO_STREAM)
         .ainvoke(
             [
@@ -486,15 +453,6 @@ def compile_final_report(state: ReportState):
 
     # Respond as message
     return {"messages": [AIMessage(content=all_sections)]}
-
-
-def find_tool_call(message: BaseMessage | None, model: type):
-    if not message or not isinstance(message, AIMessage):
-        return None
-    return cast(
-        ToolCall | None,
-        next([call for call in message.tool_calls if call["name"] == model.__name__]),
-    )
 
 
 # Report section sub-graph --
