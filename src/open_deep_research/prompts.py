@@ -1,4 +1,4 @@
-report_planner_query_writer_instructions = """You are performing research for a report. 
+REPORT_PLANNER_QUERY_WRITER_INSTRUCTIONS = """You are performing research for a report. 
 
 <Report topic>
 {topic}
@@ -20,11 +20,11 @@ Make the queries specific enough to find high-quality, relevant sources while co
 </Task>
 
 <Format>
-Call the Queries tool 
+Call the SearchQueries tool 
 </Format>
 """
 
-report_planner_instructions = """I want a plan for a report that is concise and focused.
+REPORT_PLANNER_INSTRUCTIONS = """I want a plan for a report that is concise and focused.
 
 <Report topic>
 The topic of the report is:
@@ -78,7 +78,7 @@ Call the Sections tool
 </Format>
 """
 
-query_writer_instructions = """You are an expert technical writer crafting targeted web search queries that will gather comprehensive information for writing a technical report section.
+QUERY_WRITER_INSTRUCTIONS = """You are an expert technical writer crafting targeted web search queries that will gather comprehensive information for writing a technical report section.
 
 <Report topic>
 {topic}
@@ -100,11 +100,11 @@ Make the queries specific enough to find high-quality, relevant sources.
 </Task>
 
 <Format>
-Call the Queries tool 
+Call the SearchQueries tool 
 </Format>
 """
 
-section_writer_instructions = """Write one section of a research report.
+SECTION_WRITER_INSTRUCTIONS = """Write one section of a research report.
 
 <Task>
 1. Review the report topic, section name, and section topic carefully.
@@ -139,7 +139,7 @@ section_writer_instructions = """Write one section of a research report.
 </Final Check>
 """
 
-section_writer_inputs = """ 
+SECTION_WRITER_INPUTS = """ 
 <Report topic>
 {topic}
 </Report topic>
@@ -161,7 +161,7 @@ section_writer_inputs = """
 </Source material>
 """
 
-section_grader_instructions = """Review a report section relative to the specified topic:
+SECTION_GRADER_INSTRUCTIONS = """Review a report section relative to the specified topic:
 
 <Report topic>
 {topic}
@@ -193,7 +193,7 @@ follow_up_queries: List[SearchQuery] = Field(
 </format>
 """
 
-final_section_writer_instructions = """You are an expert technical writer crafting a section that synthesizes information from the rest of the report.
+FINAL_SECTION_WRITER_INSTRUCTIONS = """You are an expert technical writer crafting a section that synthesizes information from the rest of the report.
 
 <Report topic>
 {topic}

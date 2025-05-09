@@ -12,499 +12,39 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.constants import TAG_NOSTREAM, Send
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command
-from pydantic import BaseModel, Field
 
 from open_deep_research.configuration import Configuration
 from open_deep_research.prompts import (
-    final_section_writer_instructions,
-    query_writer_instructions,
-    report_planner_instructions,
-    report_planner_query_writer_instructions,
-    section_grader_instructions,
-    section_writer_inputs,
-    section_writer_instructions,
+    FINAL_SECTION_WRITER_INSTRUCTIONS,
+    QUERY_WRITER_INSTRUCTIONS,
+    REPORT_PLANNER_INSTRUCTIONS,
+    REPORT_PLANNER_QUERY_WRITER_INSTRUCTIONS,
+    SECTION_GRADER_INSTRUCTIONS,
+    SECTION_WRITER_INPUTS,
+    SECTION_WRITER_INSTRUCTIONS,
 )
 from open_deep_research.state import (
     Feedback,
-    Queries,
+    GenerateOrRefineReport,
     ReportState,
     ReportStateInput,
     ReportStateOutput,
+    SearchQueries,
     SectionOutputState,
     Sections,
     SectionState,
+    StartResearch,
 )
 from open_deep_research.utils import (
     format_sections,
-    get_config_value,
     get_search_params,
     select_and_execute_search,
 )
 
+# Used to prevent noisy stream of internal LLM calls
+CONFIG_NO_STREAM = {"tags": [TAG_NOSTREAM]}
+
 ## Nodes
-
-
-async def generate_report_plan(state: ReportState, config: RunnableConfig):
-    """Generate the initial report plan with sections.
-
-    This node:
-    1. Gets configuration for the report structure and search parameters
-    2. Generates search queries to gather context for planning
-    3. Performs web searches using those queries
-    4. Uses an LLM to generate a structured plan with sections
-
-    Args:
-        state: Current graph state containing the report topic
-        config: Configuration for models, search APIs, etc.
-
-    Returns:
-        Dict containing the generated sections
-    """
-    # Inputs
-    topic = state["topic"]
-    feedback = state.get("feedback_on_report_plan", None)
-
-    # Get configuration
-    configurable = Configuration.from_runnable_config(config)
-    report_structure = configurable.report_structure
-    number_of_queries = configurable.number_of_queries
-    search_api = get_config_value(configurable.search_api)
-    search_api_config = (
-        configurable.search_api_config or {}
-    )  # Get the config dict, default to empty
-    params_to_pass = get_search_params(
-        search_api, search_api_config
-    )  # Filter parameters
-
-    # Convert JSON object to string if necessary
-    if isinstance(report_structure, dict):
-        report_structure = str(report_structure)
-
-    # Set writer model (model used for query writing)
-    writer_model_name = get_config_value(configurable.writer_model)
-    writer_model_kwargs = get_config_value(configurable.writer_model_kwargs or {})
-    writer_model = init_chat_model(
-        model=writer_model_name,
-        model_kwargs=writer_model_kwargs,
-    )
-    structured_llm = writer_model.with_structured_output(Queries)
-
-    # Format system instructions
-    system_instructions_query = report_planner_query_writer_instructions.format(
-        topic=topic,
-        report_organization=report_structure,
-        number_of_queries=number_of_queries,
-    )
-
-    # Generate queries
-    results = await structured_llm.with_config({"tags": [TAG_NOSTREAM]}).ainvoke(
-        [
-            SystemMessage(content=system_instructions_query),
-            HumanMessage(
-                content="Generate search queries that will help with planning the sections of the report."
-            ),
-        ]
-    )
-
-    # Web search
-    query_list = [query.search_query for query in results.queries]
-
-    # Search the web with parameters
-    source_str = await select_and_execute_search(search_api, query_list, params_to_pass)
-
-    # Format system instructions
-    system_instructions_sections = report_planner_instructions.format(
-        topic=topic,
-        report_organization=report_structure,
-        context=source_str,
-        feedback=feedback,
-    )
-
-    # Set the planner
-    planner_model = get_config_value(configurable.planner_model)
-    planner_model_kwargs = get_config_value(configurable.planner_model_kwargs or {})
-
-    # Report planner instructions
-    planner_message = """Generate the sections of the report. Your response must include a 'sections' field containing a list of sections. 
-                        Each section must have: name, description, plan, research, and content fields."""
-
-    # Run the planner
-    if planner_model == "claude-3-7-sonnet-latest":
-        # Allocate a thinking budget for claude-3-7-sonnet-latest as the planner model
-        planner_llm = init_chat_model(
-            model=planner_model,
-            max_tokens=20_000,
-            thinking={"type": "enabled", "budget_tokens": 16_000},
-        )
-
-    else:
-        # With other models, thinking tokens are not specifically allocated
-        planner_llm = init_chat_model(
-            model=planner_model,
-            model_kwargs=planner_model_kwargs,
-        )
-
-    # Generate the report sections
-    structured_llm = planner_llm.with_structured_output(Sections)
-    report_sections = await structured_llm.with_config(
-        {"tags": [TAG_NOSTREAM]}
-    ).ainvoke(
-        [
-            SystemMessage(content=system_instructions_sections),
-            HumanMessage(content=planner_message),
-        ]
-    )
-
-    return {"sections": report_sections.sections}
-
-
-async def generate_queries(state: SectionState, config: RunnableConfig):
-    """Generate search queries for researching a specific section.
-
-    This node uses an LLM to generate targeted search queries based on the
-    section topic and description.
-
-    Args:
-        state: Current state containing section details
-        config: Configuration including number of queries to generate
-
-    Returns:
-        Dict containing the generated search queries
-    """
-    # Get state
-    topic = state["topic"]
-    section = state["section"]
-
-    # Get configuration
-    configurable = Configuration.from_runnable_config(config)
-    number_of_queries = configurable.number_of_queries
-
-    # Generate queries
-    writer_model_name = get_config_value(configurable.writer_model)
-    writer_model_kwargs = get_config_value(configurable.writer_model_kwargs or {})
-    writer_model = init_chat_model(
-        model=writer_model_name,
-        model_kwargs=writer_model_kwargs,
-    )
-    structured_llm = writer_model.with_structured_output(Queries)
-
-    # Format system instructions
-    system_instructions = query_writer_instructions.format(
-        topic=topic,
-        section_topic=section.description,
-        number_of_queries=number_of_queries,
-    )
-
-    # Generate queries
-    queries = await structured_llm.with_config({"tags": [TAG_NOSTREAM]}).ainvoke(
-        [
-            SystemMessage(content=system_instructions),
-            HumanMessage(content="Generate search queries on the provided topic."),
-        ]
-    )
-
-    return {"search_queries": queries.queries}
-
-
-async def search_web(state: SectionState, config: RunnableConfig):
-    """Execute web searches for the section queries.
-
-    This node:
-    1. Takes the generated queries
-    2. Executes searches using configured search API
-    3. Formats results into usable context
-
-    Args:
-        state: Current state with search queries
-        config: Search API configuration
-
-    Returns:
-        Dict with search results and updated iteration count
-    """
-    # Get state
-    search_queries = state["search_queries"]
-
-    # Get configuration
-    configurable = Configuration.from_runnable_config(config)
-    search_api = get_config_value(configurable.search_api)
-    search_api_config = (
-        configurable.search_api_config or {}
-    )  # Get the config dict, default to empty
-    params_to_pass = get_search_params(
-        search_api, search_api_config
-    )  # Filter parameters
-
-    # Web search
-    query_list = [query.search_query for query in search_queries]
-
-    # Search the web with parameters
-    source_str = await select_and_execute_search(search_api, query_list, params_to_pass)
-
-    return {
-        "source_str": source_str,
-        "search_iterations": state["search_iterations"] + 1,
-    }
-
-
-async def write_section(
-    state: SectionState, config: RunnableConfig
-) -> Command[Literal[END, "search_web"]]:
-    """Write a section of the report and evaluate if more research is needed.
-
-    This node:
-    1. Writes section content using search results
-    2. Evaluates the quality of the section
-    3. Either:
-       - Completes the section if quality passes
-       - Triggers more research if quality fails
-
-    Args:
-        state: Current state with search results and section info
-        config: Configuration for writing and evaluation
-
-    Returns:
-        Command to either complete section or do more research
-    """
-    # Get state
-    topic = state["topic"]
-    section = state["section"]
-    source_str = state["source_str"]
-
-    # Get configuration
-    configurable = Configuration.from_runnable_config(config)
-
-    # Format system instructions
-    section_writer_inputs_formatted = section_writer_inputs.format(
-        topic=topic,
-        section_name=section.name,
-        section_topic=section.description,
-        context=source_str,
-        section_content=section.content,
-    )
-
-    # Generate section
-    writer_model_name = get_config_value(configurable.writer_model)
-    writer_model_kwargs = get_config_value(configurable.writer_model_kwargs or {})
-    writer_model = init_chat_model(
-        model=writer_model_name,
-        model_kwargs=writer_model_kwargs,
-    )
-
-    section_content = await writer_model.with_config({"tags": [TAG_NOSTREAM]}).ainvoke(
-        [
-            SystemMessage(content=section_writer_instructions),
-            HumanMessage(content=section_writer_inputs_formatted),
-        ]
-    )
-
-    # Write content to the section object
-    section.content = section_content.content
-
-    # Grade prompt
-    section_grader_message = (
-        "Grade the report and consider follow-up questions for missing information. "
-        "If the grade is 'pass', return empty strings for all follow-up queries. "
-        "If the grade is 'fail', provide specific search queries to gather missing information."
-    )
-
-    section_grader_instructions_formatted = section_grader_instructions.format(
-        topic=topic,
-        section_topic=section.description,
-        section=section.content,
-        number_of_follow_up_queries=configurable.number_of_queries,
-    )
-
-    # Use planner model for reflection
-    planner_model = get_config_value(configurable.planner_model)
-    planner_model_kwargs = get_config_value(configurable.planner_model_kwargs or {})
-
-    if planner_model == "claude-3-7-sonnet-latest":
-        # Allocate a thinking budget for claude-3-7-sonnet-latest as the planner model
-        reflection_model = init_chat_model(
-            model=planner_model,
-            max_tokens=20_000,
-            thinking={"type": "enabled", "budget_tokens": 16_000},
-        ).with_structured_output(Feedback)
-    else:
-        reflection_model = init_chat_model(
-            model=planner_model,
-            model_kwargs=planner_model_kwargs,
-        ).with_structured_output(Feedback)
-    # Generate feedback
-    feedback = await reflection_model.with_config({"tags": [TAG_NOSTREAM]}).ainvoke(
-        [
-            SystemMessage(content=section_grader_instructions_formatted),
-            HumanMessage(content=section_grader_message),
-        ]
-    )
-
-    # If the section is passing or the max search depth is reached, publish the section to completed sections
-    if (
-        feedback.grade == "pass"
-        or state["search_iterations"] >= configurable.max_search_depth
-    ):
-        # Publish the section to completed sections
-        return Command(update={"completed_sections": [section]}, goto=END)
-
-    # Update the existing section with new content and update search queries
-    else:
-        return Command(
-            update={"search_queries": feedback.follow_up_queries, "section": section},
-            goto="search_web",
-        )
-
-
-async def write_final_sections(state: SectionState, config: RunnableConfig):
-    """Write sections that don't require research using completed sections as context.
-
-    This node handles sections like conclusions or summaries that build on
-    the researched sections rather than requiring direct research.
-
-    Args:
-        state: Current state with completed sections as context
-        config: Configuration for the writing model
-
-    Returns:
-        Dict containing the newly written section
-    """
-    # Get configuration
-    configurable = Configuration.from_runnable_config(config)
-
-    # Get state
-    topic = state["topic"]
-    section = state["section"]
-    completed_report_sections = state["report_sections_from_research"]
-
-    # Format system instructions
-    system_instructions = final_section_writer_instructions.format(
-        topic=topic,
-        section_name=section.name,
-        section_topic=section.description,
-        context=completed_report_sections,
-    )
-
-    # Generate section
-    writer_model_name = get_config_value(configurable.writer_model)
-    writer_model_kwargs = get_config_value(configurable.writer_model_kwargs or {})
-    writer_model = init_chat_model(
-        model=writer_model_name,
-        model_kwargs=writer_model_kwargs,
-    )
-
-    section_content = await writer_model.with_config({"tags": [TAG_NOSTREAM]}).ainvoke(
-        [
-            SystemMessage(content=system_instructions),
-            HumanMessage(
-                content="Generate a report section based on the provided sources."
-            ),
-        ]
-    )
-
-    # Write content to section
-    section.content = section_content.content
-
-    # Write the updated section to completed sections
-    return {"completed_sections": [section]}
-
-
-def gather_completed_sections(state: ReportState):
-    """Format completed sections as context for writing final sections.
-
-    This node takes all completed research sections and formats them into
-    a single context string for writing summary sections.
-
-    Args:
-        state: Current state with completed sections
-
-    Returns:
-        Dict with formatted sections as context
-    """
-    # List of completed sections
-    completed_sections = state["completed_sections"]
-
-    # Format completed section to str to use as context for final sections
-    completed_report_sections = format_sections(completed_sections)
-
-    return {"report_sections_from_research": completed_report_sections}
-
-
-def compile_final_report(state: ReportState):
-    """Compile all sections into the final report.
-
-    This node:
-    1. Gets all completed sections
-    2. Orders them according to original plan
-    3. Combines them into the final report
-
-    Args:
-        state: Current state with all completed sections
-
-    Returns:
-        Dict containing the complete report
-    """
-    # Get sections
-    sections = state["sections"]
-    completed_sections = {s.name: s.content for s in state["completed_sections"]}
-
-    # Update sections with completed content while maintaining original order
-    for section in sections:
-        section.content = completed_sections[section.name]
-
-    # Compile final report
-    all_sections = "\n\n".join([s.content for s in sections])
-
-    return {"messages": [AIMessage(content=all_sections)]}
-
-
-def initiate_final_section_writing(state: ReportState):
-    """Create parallel tasks for writing non-research sections.
-
-    This edge function identifies sections that don't need research and
-    creates parallel writing tasks for each one.
-
-    Args:
-        state: Current state with all sections and research context
-
-    Returns:
-        List of Send commands for parallel section writing
-    """
-    # Kick off section writing in parallel via Send() API for any sections that do not require research
-    return [
-        Send(
-            "write_final_sections",
-            {
-                "topic": state["topic"],
-                "section": s,
-                "report_sections_from_research": state["report_sections_from_research"],
-            },
-        )
-        for s in state["sections"]
-        if not s.research
-    ]
-
-
-class GenerateOrRefineReport(BaseModel):
-    """Generate or refine the research plan used for report."""
-
-    topic: str = Field(description="Topic for the report")
-    feedback_on_report_plan: str | None = Field(
-        description="Feedback to be used when modifying an existing report plan"
-    )
-
-
-class StartResearch(BaseModel):
-    """Start the research"""
-
-    pass
-
-
-def find_tool_call(message: BaseMessage | None, model: type):
-    if not message or not isinstance(message, AIMessage):
-        return None
-    return cast(
-        ToolCall | None,
-        next([call for call in message.tool_calls if call["name"] == model.__name__]),
-    )
 
 
 async def converse(state: ReportState) -> ReportState:
@@ -548,6 +88,415 @@ async def converse_edge(
     return END
 
 
+async def generate_report_plan(
+    state: ReportState, config: RunnableConfig
+) -> ReportState:
+    """Generate the initial report plan with sections.
+
+    This node:
+    1. Gets configuration for the report structure and search parameters
+    2. Generates search queries to gather context for planning
+    3. Performs web searches using those queries
+    4. Uses an LLM to generate a structured plan with sections
+
+    Args:
+        state: Current graph state containing the report topic
+        config: Configuration for models, search APIs, etc.
+
+    Returns:
+        Dict containing the generated sections
+    """
+    # Inputs
+    topic = state["topic"]
+    feedback = state.get("feedback_on_report_plan", None)
+
+    # Get configuration
+    configurable = Configuration.from_runnable_config(config)
+
+    number_of_queries = configurable.number_of_queries
+    report_organization = configurable.report_structure
+    if isinstance(configurable.report_structure, dict):
+        report_organization = str(configurable.report_structure)
+
+    # Generate queries
+    search_queries: SearchQueries = (
+        await init_chat_model(
+            model=configurable.writer_model_name,
+            **(configurable.writer_model_kwargs or {}),
+        )
+        .with_structured_output(SearchQueries)
+        .with_config(CONFIG_NO_STREAM)
+        .ainvoke(
+            [
+                SystemMessage(
+                    REPORT_PLANNER_QUERY_WRITER_INSTRUCTIONS.format(
+                        topic=topic,
+                        report_organization=report_organization,
+                        number_of_queries=number_of_queries,
+                    )
+                ),
+                HumanMessage(
+                    "Generate search queries that will help with planning the sections of the report."
+                ),
+            ]
+        )
+    )
+
+    # Search the web with parameters
+    source_str = await select_and_execute_search(
+        configurable.search_api,
+        [query.search_query for query in search_queries.queries],
+        get_search_params(
+            configurable.search_api, configurable.search_api_config or {}
+        ),
+    )
+
+    # Generate the report sections
+    report_sections = (
+        await init_chat_model(
+            model=configurable.planner_model,
+            max_tokens=20_000,
+            thinking={"type": "enabled", "budget_tokens": 16_000},
+            **(
+                {
+                    "max_tokens": 20_000,
+                    "thinking": {"type": "enabled", "budget_tokens": 16_000},
+                }
+                if configurable.planner_model.endswith("claude-3-7-sonnet-latest")
+                else {}
+            ),
+            **(configurable.planner_model_kwargs or {}),
+        )
+        .with_structured_output(Sections)
+        .with_config(CONFIG_NO_STREAM)
+        .ainvoke(
+            [
+                SystemMessage(
+                    content=REPORT_PLANNER_INSTRUCTIONS.format(
+                        topic=topic,
+                        report_organization=report_organization,
+                        context=source_str,
+                        feedback=feedback,
+                    )
+                ),
+                HumanMessage(
+                    "Generate the sections of the report. Your response must include a 'sections' field containing a list of sections. "
+                    "Each section must have: name, description, plan, research, and content fields."
+                ),
+            ]
+        )
+    )
+
+    return {"sections": report_sections.sections}
+
+
+async def generate_queries(state: SectionState, config: RunnableConfig) -> SectionState:
+    """Generate search queries for researching a specific section.
+
+    This node uses an LLM to generate targeted search queries based on the
+    section topic and description.
+
+    Args:
+        state: Current state containing section details
+        config: Configuration including number of queries to generate
+
+    Returns:
+        Dict containing the generated search queries
+    """
+    # Get state
+    topic = state["topic"]
+    section = state["section"]
+
+    # Get configuration
+    configurable = Configuration.from_runnable_config(config)
+
+    # Generate queries
+    queries = (
+        await init_chat_model(
+            model=configurable.writer_model, **(configurable.writer_model_kwargs or {})
+        )
+        .with_structured_output(SearchQueries)
+        .with_config(CONFIG_NO_STREAM)
+        .ainvoke(
+            [
+                SystemMessage(
+                    QUERY_WRITER_INSTRUCTIONS.format(
+                        topic=topic,
+                        section_topic=section.description,
+                        number_of_queries=configurable.number_of_queries,
+                    )
+                ),
+                HumanMessage("Generate search queries on the provided topic."),
+            ]
+        )
+    )
+
+    return {"search_queries": queries.queries}
+
+
+async def search_web(state: SectionState, config: RunnableConfig) -> SectionState:
+    """Execute web searches for the section queries.
+
+    This node:
+    1. Takes the generated queries
+    2. Executes searches using configured search API
+    3. Formats results into usable context
+
+    Args:
+        state: Current state with search queries
+        config: Search API configuration
+
+    Returns:
+        Dict with search results and updated iteration count
+    """
+    # Get state
+    search_queries = state["search_queries"]
+
+    # Get configuration
+    configurable = Configuration.from_runnable_config(config)
+
+    # Search the web with parameters
+    source_str = await select_and_execute_search(
+        configurable.search_api,
+        [query.search_query for query in search_queries],
+        get_search_params(
+            configurable.search_api, configurable.search_api_config or {}
+        ),
+    )
+
+    return {
+        "source_str": source_str,
+        "search_iterations": state["search_iterations"] + 1,
+    }
+
+
+async def write_section(
+    state: SectionState, config: RunnableConfig
+) -> Command[Literal[END, "search_web"]]:
+    """Write a section of the report and evaluate if more research is needed.
+
+    This node:
+    1. Writes section content using search results
+    2. Evaluates the quality of the section
+    3. Either:
+       - Completes the section if quality passes
+       - Triggers more research if quality fails
+
+    Args:
+        state: Current state with search results and section info
+        config: Configuration for writing and evaluation
+
+    Returns:
+        Command to either complete section or do more research
+    """
+    # Get state
+    topic = state["topic"]
+    section = state["section"]
+    source_str = state["source_str"]
+
+    # Get configuration
+    configurable = Configuration.from_runnable_config(config)
+
+    # Generate section
+    section_content = (
+        await init_chat_model(
+            model=configurable.writer_model,
+            **(configurable.writer_model_kwargs or {}),
+        )
+        .with_config(CONFIG_NO_STREAM)
+        .ainvoke(
+            [
+                SystemMessage(content=SECTION_WRITER_INSTRUCTIONS),
+                HumanMessage(
+                    SECTION_WRITER_INPUTS.format(
+                        topic=topic,
+                        section_name=section.name,
+                        section_topic=section.description,
+                        context=source_str,
+                        section_content=section.content,
+                    )
+                ),
+            ]
+        )
+    )
+
+    # Write content to the section object
+    section.content = section_content.content
+
+    # Generate feedback
+    feedback = (
+        await init_chat_model(
+            model=configurable.planner_model,
+            **(
+                {
+                    "max_tokens": 20_000,
+                    "thinking": {"type": "enabled", "budget_tokens": 16_000},
+                }
+                if configurable.planner_model.endswith("claude-3-7-sonnet-latest")
+                else {}
+            ),
+            **(configurable.planner_model_kwargs or {}),
+        )
+        .with_structured_output(Feedback)
+        .with_config(CONFIG_NO_STREAM)
+        .ainvoke(
+            [
+                SystemMessage(
+                    SECTION_GRADER_INSTRUCTIONS.format(
+                        topic=topic,
+                        section_topic=section.description,
+                        section=section.content,
+                        number_of_follow_up_queries=configurable.number_of_queries,
+                    )
+                ),
+                HumanMessage(
+                    "Grade the report and consider follow-up questions for missing information. "
+                    "If the grade is 'pass', return empty strings for all follow-up queries. "
+                    "If the grade is 'fail', provide specific search queries to gather missing information."
+                ),
+            ]
+        )
+    )
+
+    # If the section is passing or the max search depth is reached, publish the section to completed sections
+    if (
+        feedback.grade == "pass"
+        or state["search_iterations"] >= configurable.max_search_depth
+    ):
+        # Publish the section to completed sections
+        return Command(update={"completed_sections": [section]}, goto=END)
+
+    # Update the existing section with new content and update search queries
+    else:
+        return Command(
+            update={"search_queries": feedback.follow_up_queries, "section": section},
+            goto="search_web",
+        )
+
+
+async def write_final_sections(state: SectionState, config: RunnableConfig):
+    """Write sections that don't require research using completed sections as context.
+
+    This node handles sections like conclusions or summaries that build on
+    the researched sections rather than requiring direct research.
+
+    Args:
+        state: Current state with completed sections as context
+        config: Configuration for the writing model
+
+    Returns:
+        Dict containing the newly written section
+    """
+    # Get configuration
+    configurable = Configuration.from_runnable_config(config)
+
+    # Get state
+    topic = state["topic"]
+    section = state["section"]
+    completed_report_sections = state["report_sections_from_research"]
+
+    # Generate section
+    section_content = (
+        await init_chat_model(
+            model=configurable.writer_model, **(configurable.writer_model_kwargs or {})
+        )
+        .with_config(CONFIG_NO_STREAM)
+        .ainvoke(
+            [
+                SystemMessage(
+                    FINAL_SECTION_WRITER_INSTRUCTIONS.format(
+                        topic=topic,
+                        section_name=section.name,
+                        section_topic=section.description,
+                        context=completed_report_sections,
+                    )
+                ),
+                HumanMessage(
+                    "Generate a report section based on the provided sources."
+                ),
+            ]
+        )
+    )
+
+    # Write content to section
+    section.content = section_content.content
+
+    # Write the updated section to completed sections
+    return {"completed_sections": [section]}
+
+
+def gather_completed_sections(
+    state: ReportState,
+) -> Command[Literal["write_final_sections"]]:
+    """Format completed sections as context for writing final sections.
+
+    This node takes all completed research sections and formats them into
+    a single context string for writing summary sections.
+
+    Args:
+        state: Current state with completed sections
+
+    Returns:
+        Dict with formatted sections as context
+    """
+    # Format completed section to str to use as context for final sections
+    completed_report_sections = format_sections(state["completed_sections"])
+
+    return Command(
+        goto=[
+            Send(
+                "write_final_sections",
+                {
+                    "topic": state["topic"],
+                    "section": s,
+                    "report_sections_from_research": completed_report_sections,
+                },
+            )
+            for s in state["sections"]
+            if not s.research
+        ],
+        update={"report_sections_from_research": completed_report_sections},
+    )
+
+
+def compile_final_report(state: ReportState):
+    """Compile all sections into the final report.
+
+    This node:
+    1. Gets all completed sections
+    2. Orders them according to original plan
+    3. Combines them into the final report
+
+    Args:
+        state: Current state with all completed sections
+
+    Returns:
+        Dict containing the complete report
+    """
+    # Get sections
+    sections = state["sections"]
+    completed_sections = {s.name: s.content for s in state["completed_sections"]}
+
+    # Update sections with completed content while maintaining original order
+    for section in sections:
+        section.content = completed_sections[section.name]
+
+    # Compile final report
+    all_sections = "\n\n".join([s.content for s in sections])
+
+    # Respond as message
+    return {"messages": [AIMessage(content=all_sections)]}
+
+
+def find_tool_call(message: BaseMessage | None, model: type):
+    if not message or not isinstance(message, AIMessage):
+        return None
+    return cast(
+        ToolCall | None,
+        next([call for call in message.tool_calls if call["name"] == model.__name__]),
+    )
+
+
 # Report section sub-graph --
 
 # Add nodes
@@ -585,11 +534,6 @@ builder.add_conditional_edges(
     path_map=["build_section_with_web_research", "generate_report_plan", END],
 )
 builder.add_edge("build_section_with_web_research", "gather_completed_sections")
-builder.add_conditional_edges(
-    "gather_completed_sections",
-    initiate_final_section_writing,
-    ["write_final_sections"],
-)
 builder.add_edge("write_final_sections", "compile_final_report")
 builder.add_edge("compile_final_report", END)
 

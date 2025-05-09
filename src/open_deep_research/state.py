@@ -29,10 +29,25 @@ class SearchQuery(BaseModel):
     search_query: str = Field(None, description="Query for web search.")
 
 
-class Queries(BaseModel):
+class SearchQueries(BaseModel):
     queries: List[SearchQuery] = Field(
         description="List of search queries.",
     )
+
+
+class GenerateOrRefineReport(BaseModel):
+    """Generate or refine the research plan used for report."""
+
+    topic: str = Field(description="Topic for the report")
+    feedback_on_report_plan: str | None = Field(
+        description="Feedback to be used when modifying an existing report plan"
+    )
+
+
+class StartResearch(BaseModel):
+    """Start the research"""
+
+    pass
 
 
 class Feedback(BaseModel):
