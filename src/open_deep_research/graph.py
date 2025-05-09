@@ -1,11 +1,18 @@
-from typing import Literal
+from typing import Literal, cast
 
 from langchain.chat_models import init_chat_model
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.messages import (
+    AIMessage,
+    BaseMessage,
+    HumanMessage,
+    SystemMessage,
+    ToolCall,
+)
 from langchain_core.runnables import RunnableConfig
 from langgraph.constants import TAG_NOSTREAM, Send
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command
+from pydantic import BaseModel, Field
 
 from open_deep_research.configuration import Configuration
 from open_deep_research.prompts import (
@@ -37,9 +44,7 @@ from open_deep_research.utils import (
 ## Nodes
 
 
-async def generate_report_plan(
-    state: ReportState, config: RunnableConfig
-) -> Command[Literal["build_section_with_web_research"]]:
+async def generate_report_plan(state: ReportState, config: RunnableConfig):
     """Generate the initial report plan with sections.
 
     This node:
@@ -150,17 +155,7 @@ async def generate_report_plan(
         ]
     )
 
-    return Command(
-        goto=[
-            Send(
-                "build_section_with_web_research",
-                {"topic": topic, "section": s, "search_iterations": 0},
-            )
-            for s in report_sections.sections
-            if s.research
-        ],
-        update={"sections": report_sections.sections, "topic": topic},
-    )
+    return {"sections": report_sections.sections, "topic": topic}
 
 
 async def generate_queries(state: SectionState, config: RunnableConfig):
@@ -488,6 +483,70 @@ def initiate_final_section_writing(state: ReportState):
     ]
 
 
+class GenerateOrRefineReport(BaseModel):
+    """Generate or refine the research plan used for report."""
+
+    topic: str = Field(description="Topic for the report")
+    feedback_on_report_plan: str | None = Field(
+        description="Feedback to be used when modifying an existing report plan"
+    )
+
+
+class StartResearch(BaseModel):
+    """Start the research"""
+
+    pass
+
+
+def find_tool_call(message: BaseMessage | None, model: type):
+    if not message or not isinstance(message, AIMessage):
+        return None
+    return cast(
+        ToolCall | None,
+        next([call for call in message.tool_calls if call["name"] == model.__name__]),
+    )
+
+
+async def converse(state: ReportState) -> ReportState:
+    model = init_chat_model("openai:gpt-4o-mini").bind_tools(
+        [GenerateOrRefineReport, StartResearch]
+    )
+
+    message: AIMessage = await model.ainvoke(
+        [
+            SystemMessage("You are an assistant that aids user to create a report."),
+            *state["messages"],
+        ]
+    )
+
+    if report_tool_call := find_tool_call(message, GenerateOrRefineReport):
+        return {"message": [message], **report_tool_call["args"]}
+
+    return {"messages": [message]}
+
+
+async def converse_edge(
+    state: ReportState,
+) -> Command[Literal["generate_report_plan", "build_section_with_web_research"]]:
+    last_message = state["messages"][-1]
+    if find_tool_call(last_message, GenerateOrRefineReport):
+        return "generate_report_plan"
+
+    if find_tool_call(last_message, StartResearch):
+        return Command(
+            goto=[
+                Send(
+                    "build_section_with_web_research",
+                    {"topic": state["topic"], "section": s, "search_iterations": 0},
+                )
+                for s in state["sections"]
+                if s.research
+            ],
+        )
+
+    return END
+
+
 # Report section sub-graph --
 
 # Add nodes
@@ -510,6 +569,7 @@ builder = StateGraph(
     output=ReportStateOutput,
     config_schema=Configuration,
 )
+builder.add_node("converse", converse)
 builder.add_node("generate_report_plan", generate_report_plan)
 builder.add_node("build_section_with_web_research", section_builder.compile())
 builder.add_node("gather_completed_sections", gather_completed_sections)
@@ -517,7 +577,12 @@ builder.add_node("write_final_sections", write_final_sections)
 builder.add_node("compile_final_report", compile_final_report)
 
 # Add edges
-builder.add_edge(START, "generate_report_plan")
+builder.add_edge(START, "converse")
+builder.add_conditional_edges(
+    "converse",
+    converse_edge,
+    path_map=["build_section_with_web_research", "generate_report_plan", END],
+)
 builder.add_edge("build_section_with_web_research", "gather_completed_sections")
 builder.add_conditional_edges(
     "gather_completed_sections",
