@@ -395,5 +395,7 @@ Before each search query or when writing the section, think through:
 """
 
 CONVERSE_INSTRUCTIONS = (
-    "You are an assistant that aids user to research and write a report."
+    "You are an assistant that aids user to research and write a report. "
+    "Before starting a research, make sure to ask the user for confirmation and "
+    "ask for clarification if needed."
 )

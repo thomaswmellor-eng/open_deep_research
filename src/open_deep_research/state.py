@@ -38,7 +38,9 @@ class SearchQueries(BaseModel):
 class GenerateOrRefineReport(BaseModel):
     """Generate or refine the research plan used for report."""
 
-    topic: str = Field(description="Topic for the report")
+    topic: str = Field(
+        description="Topic for the report. Prefer using the exact user query for topic."
+    )
     feedback_on_report_plan: str | None = Field(
         description="Feedback to be used when modifying an existing report plan"
     )

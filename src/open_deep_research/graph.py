@@ -39,7 +39,8 @@ from open_deep_research.utils import (
 )
 
 # Used to prevent noisy stream of internal LLM calls
-CONFIG_NO_STREAM = {"tags": [TAG_NOSTREAM]}
+# CONFIG_NO_STREAM = {"tags": [TAG_NOSTREAM]}
+CONFIG_NO_STREAM = {"tags": []}
 
 ## Nodes
 
@@ -50,15 +51,15 @@ async def converse(
     state: ReportState, config: RunnableConfig
 ) -> Command[Literal["build_section_with_web_research", "generate_report_plan"]]:
     tools: list[ToolCall] = [GenerateOrRefineReport]
-    tool_choice = "any"
 
-    if state.get("sections") or state.get("topic"):
+    if (state.get("sections") or state.get("topic")) and isinstance(
+        state["messages"][-1], HumanMessage
+    ):
         tools.append(StartResearch)
-        tool_choice = None
 
     message: AIMessage = (
         await Configuration.init_chat_model("converse_model", config)
-        .bind_tools(tools, tool_choice=tool_choice)
+        .bind_tools(tools, parallel_tool_calls=False)
         .ainvoke(
             [
                 SystemMessage(CONVERSE_INSTRUCTIONS),
@@ -67,7 +68,6 @@ async def converse(
         )
     )
 
-    # TODO: when do I respond with a tool message?
     if find_tool_call(message, GenerateOrRefineReport):
         return Command(
             goto="generate_report_plan",
