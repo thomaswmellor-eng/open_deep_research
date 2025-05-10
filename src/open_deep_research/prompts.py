@@ -394,4 +394,6 @@ Before each search query or when writing the section, think through:
 - Stay within the 200 word limit for the main content
 """
 
-CONVERSE_INSTRUCTIONS = """You are an assistant that aids user to create a report."""
+CONVERSE_INSTRUCTIONS = (
+    "You are an assistant that aids user to research and write a report."
+)

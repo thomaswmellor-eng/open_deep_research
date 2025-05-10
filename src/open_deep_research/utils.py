@@ -30,7 +30,10 @@ def find_tool_call(message: BaseMessage | None, model: type):
         return None
     return cast(
         ToolCall | None,
-        next([call for call in message.tool_calls if call["name"] == model.__name__]),
+        next(
+            (call for call in message.tool_calls if call["name"] == model.__name__),
+            None,
+        ),
     )
 
 

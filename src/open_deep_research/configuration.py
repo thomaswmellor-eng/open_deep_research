@@ -30,6 +30,7 @@ MODELS = [
         "value": "anthropic:claude-3-5-sonnet-latest",
     },
     {"label": "GPT 4o", "value": "openai:gpt-4o"},
+    {"label": "GPT 4o mini", "value": "openai:gpt-4o-mini"},
     {"label": "GPT 4.1", "value": "openai:gpt-4.1"},
     {"label": "o3", "value": "openai:o3"},
     {"label": "o3 mini", "value": "openai:o3-mini"},
@@ -267,4 +268,4 @@ class Configuration(BaseModel):
             **(getattr(configuration, f"{model_name}_kwargs", None) or {}),
         }
 
-        return init_chat_model(model=model_name, **config_model_kwargs)
+        return init_chat_model(model=config_model_name, **config_model_kwargs)

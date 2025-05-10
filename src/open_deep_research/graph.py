@@ -50,17 +50,20 @@ async def converse(
     state: ReportState, config: RunnableConfig
 ) -> Command[Literal["build_section_with_web_research", "generate_report_plan"]]:
     tools: list[ToolCall] = [GenerateOrRefineReport]
-    if state["sections"] or state["topic"]:
+    tool_choice = "any"
+
+    if state.get("sections") or state.get("topic"):
         tools.append(StartResearch)
+        tool_choice = None
 
     message: AIMessage = (
         await Configuration.init_chat_model("converse_model", config)
-        .bind_tools(tools)
+        .bind_tools(tools, tool_choice=tool_choice)
         .ainvoke(
             [
                 SystemMessage(CONVERSE_INSTRUCTIONS),
                 *state["messages"],
-            ]
+            ],
         )
     )
 
@@ -68,7 +71,7 @@ async def converse(
     if find_tool_call(message, GenerateOrRefineReport):
         return Command(
             goto="generate_report_plan",
-            update={"message": [message]},
+            update={"messages": [message]},
         )
 
     if find_tool_call(message, StartResearch):
@@ -178,7 +181,7 @@ async def generate_report_plan(
     )
 
     return {
-        "message": [tool_message],
+        "messages": [tool_message],
         "topic": topic,
         "sections": report_sections.sections,
     }
