@@ -46,8 +46,21 @@ class CriteriaGrade(BaseModel):
     justification: str = Field(description="The justification for the grade and score, including specific examples from the response.")
 
 
+def _format_input_query(inputs: dict) -> str:
+    messages = inputs["messages"]
+    if len(messages) == 1:
+        return messages[0]["content"]
+
+    role_to_string_format_map = {
+        "user": "<user_input>\n{content}\n</user_input>",
+        "assistant": "<assistant_follow_up>\n{content}\n</assistant_follow_up>",
+    }
+
+    return "\n\n".join([role_to_string_format_map[message["role"]].format(content=message["content"]) for message in messages])
+
+
 def eval_report_quality(inputs: dict, outputs: dict):
-    query = inputs["messages"][0]["content"]
+    query = _format_input_query(inputs)
     final_report = outputs["messages"][0]["content"]
 
     eval_result = cast(CriteriaGrade, eval_model.with_structured_output(CriteriaGrade).invoke([
