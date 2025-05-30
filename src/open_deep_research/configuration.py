@@ -16,7 +16,7 @@ DEFAULT_REPORT_STRUCTURE = """Use this structure to create a report on the user-
    - Each section should focus on a sub-topic of the user-provided topic
    
 3. Conclusion
-   - Aim for 1 structural element (either a list of table) that distills the main body sections 
+   - Aim for 1 structural element (either a list or table) that distills the main body sections 
    - Provide a concise summary of the report"""
 
 class SearchAPI(Enum):
@@ -48,8 +48,6 @@ class Configuration:
     writer_provider: str = "anthropic" # Defaults to Anthropic as provider
     writer_model: str = "claude-3-5-sonnet-latest" # Defaults to claude-3-5-sonnet-latest
     writer_model_kwargs: Optional[Dict[str, Any]] = None # kwargs for writer_model
-    search_api: SearchAPI = SearchAPI.TAVILY # Default to TAVILY
-    search_api_config: Optional[Dict[str, Any]] = None 
     
     # Multi-agent specific configuration
     supervisor_model: str = "openai:gpt-4.1" # Model for supervisor agent in multi-agent setup
