@@ -36,6 +36,8 @@ class Configuration:
     report_structure: str = DEFAULT_REPORT_STRUCTURE # Defaults to the default report structure
     search_api: SearchAPI = SearchAPI.TAVILY # Default to TAVILY
     search_api_config: Optional[Dict[str, Any]] = None
+    # Whether to include search results string in the agent output state
+    include_source_str: bool = False
     
     # Graph-specific configuration
     number_of_queries: int = 2 # Number of search queries to generate per iteration

@@ -334,16 +334,16 @@ async def write_section(state: SectionState, config: RunnableConfig) -> Command[
     # If the section is passing or the max search depth is reached, publish the section to completed sections 
     if feedback.grade == "pass" or state["search_iterations"] >= configurable.max_search_depth:
         # Publish the section to completed sections 
-        return  Command(
-        update={"completed_sections": [section]},
-        goto=END
-    )
+        update = {"completed_sections": [section]}
+        if configurable.include_source_str:
+            update["source_str"] = source_str
+        return Command(update=update, goto=END)
 
     # Update the existing section with new content and update search queries
     else:
-        return  Command(
-        update={"search_queries": feedback.follow_up_queries, "section": section},
-        goto="search_web"
+        return Command(
+            update={"search_queries": feedback.follow_up_queries, "section": section},
+            goto="search_web"
         )
     
 async def write_final_sections(state: SectionState, config: RunnableConfig):
@@ -407,7 +407,7 @@ def gather_completed_sections(state: ReportState):
 
     return {"report_sections_from_research": completed_report_sections}
 
-def compile_final_report(state: ReportState):
+def compile_final_report(state: ReportState, config: RunnableConfig):
     """Compile all sections into the final report.
     
     This node:
@@ -422,6 +422,9 @@ def compile_final_report(state: ReportState):
         Dict containing the complete report
     """
 
+    # Get configuration
+    configurable = Configuration.from_runnable_config(config)
+
     # Get sections
     sections = state["sections"]
     completed_sections = {s.name: s.content for s in state["completed_sections"]}
@@ -433,7 +436,10 @@ def compile_final_report(state: ReportState):
     # Compile final report
     all_sections = "\n\n".join([s.content for s in sections])
 
-    return {"final_report": all_sections}
+    if configurable.include_source_str:
+        return {"final_report": all_sections, "source_str": state["source_str"]}
+    else:
+        return {"final_report": all_sections}
 
 def initiate_final_section_writing(state: ReportState):
     """Create parallel tasks for writing non-research sections.
