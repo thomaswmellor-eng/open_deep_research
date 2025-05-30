@@ -1,9 +1,12 @@
 from typing import cast
 
 from pydantic import BaseModel, Field
-from langchain.chat_models import init_chat_model
+from langchain_anthropic import ChatAnthropic
 
-eval_model = init_chat_model("anthropic:claude-sonnet-4-20250514")
+eval_model = ChatAnthropic(
+    model="claude-sonnet-4-0",
+    betas=["extended-cache-ttl-2025-04-11"],
+)
 
 
 RESPONSE_CRITERIA_SYSTEM_PROMPT = """
@@ -63,9 +66,17 @@ def eval_report_quality(inputs: dict, outputs: dict):
     query = _format_input_query(inputs)
     final_report = outputs["messages"][0]["content"]
 
+    user_input_content = f"""User input: {query}\n\nReport: \n\n{final_report}\n\nEvaluate whether the report meets the criteria and provide detailed justification for your evaluation."""
+    if isinstance(eval_model, ChatAnthropic):
+        user_input_content = [{
+            "type": "text",
+            "text": user_input_content,
+            "cache_control": {"type": "ephemeral", "ttl": "1h"}
+        }]
+
     eval_result = cast(CriteriaGrade, eval_model.with_structured_output(CriteriaGrade).invoke([
         {"role": "system", "content": RESPONSE_CRITERIA_SYSTEM_PROMPT},
-        {"role": "user", "content": f"""User input: {query}\n\nReport: \n\n{final_report}\n\nEvaluate whether the report meets the criteria and provide detailed justification for your evaluation."""}
+        {"role": "user", "content": user_input_content}
     ]))
     # normalize to 0-1
     return eval_result.grade / 5
