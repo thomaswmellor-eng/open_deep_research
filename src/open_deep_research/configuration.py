@@ -36,7 +36,13 @@ class Configuration:
     report_structure: str = DEFAULT_REPORT_STRUCTURE # Defaults to the default report structure
     search_api: SearchAPI = SearchAPI.TAVILY # Default to TAVILY
     search_api_config: Optional[Dict[str, Any]] = None
+    summarize_search_results: bool = False
+    # Summarization model for summarizing search results
+    # will be used if summarize_search_results is True
+    summarization_model_provider: str = "anthropic"
+    summarization_model: str = "claude-3-5-haiku-latest"
     # Whether to include search results string in the agent output state
+    # This is used for evaluation purposes only
     include_source_str: bool = False
     
     # Graph-specific configuration
