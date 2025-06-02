@@ -25,6 +25,7 @@ from langchain.chat_models import init_chat_model
 from langchain.embeddings import init_embeddings
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
+from langchain_anthropic import ChatAnthropic
 from langchain_core.language_models import BaseChatModel
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import InjectedToolArg
@@ -1399,9 +1400,18 @@ async def tavily_search(
 
     configurable = Configuration.from_runnable_config(config)
     max_char_to_include = 30_000
-    # TODO: share this across all search implementations / tools
+    # TODO: share this behavior across all search implementations / tools
     if configurable.process_search_results == "summarize":
-        summarization_model = init_chat_model(model=configurable.summarization_model, model_provider=configurable.summarization_model_provider)
+        if configurable.summarization_model_provider == "anthropic":
+            extra_kwargs = {"betas": ["extended-cache-ttl-2025-04-11"]}
+        else:
+            extra_kwargs = {}
+
+        summarization_model = init_chat_model(
+            model=configurable.summarization_model,
+            model_provider=configurable.summarization_model_provider,
+            **extra_kwargs
+        )
         summarization_tasks = [
             noop() if not result.get("raw_content") else summarize_webpage(summarization_model, result['raw_content'][:max_char_to_include])
             for result in unique_results.values()
@@ -1535,9 +1545,17 @@ class Summary(BaseModel):
 async def summarize_webpage(model: BaseChatModel, webpage_content: str) -> str:
     """Summarize webpage content."""
     try:
+        user_input_content = "Please summarize the article"
+        if isinstance(model, ChatAnthropic):
+            user_input_content = [{
+                "type": "text",
+                "text": user_input_content,
+                "cache_control": {"type": "ephemeral", "ttl": "1h"}
+            }]
+
         summary = await model.with_structured_output(Summary).ainvoke([
             {"role": "system", "content": SUMMARIZATION_PROMPT.format(webpage_content=webpage_content)},
-            {"role": "user", "content": "Please summarize the article"},
+            {"role": "user", "content": user_input_content},
         ])
     except:
         # fall back on the raw content
@@ -1557,7 +1575,7 @@ def split_and_rerank_search_results(embeddings: Embeddings, query: str, search_r
     )
     documents = [
         Document(
-            page_content=result.get('raw_content', result['content']),
+            page_content=result.get('raw_content') or result['content'],
             metadata={"url": result['url'], "title": result['title']}
         )
         for result in search_results
