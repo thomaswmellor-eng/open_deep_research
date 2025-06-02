@@ -1,9 +1,8 @@
 import os
 from enum import Enum
 from dataclasses import dataclass, fields
-from typing import Any, Optional, Dict 
+from typing import Any, Optional, Dict, Literal
 
-from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.runnables import RunnableConfig
 from dataclasses import dataclass
 
@@ -36,7 +35,7 @@ class Configuration:
     report_structure: str = DEFAULT_REPORT_STRUCTURE # Defaults to the default report structure
     search_api: SearchAPI = SearchAPI.TAVILY # Default to TAVILY
     search_api_config: Optional[Dict[str, Any]] = None
-    summarize_search_results: bool = False
+    process_search_results: Literal["summarize", "split_and_rerank"] | None = None
     # Summarization model for summarizing search results
     # will be used if summarize_search_results is True
     summarization_model_provider: str = "anthropic"

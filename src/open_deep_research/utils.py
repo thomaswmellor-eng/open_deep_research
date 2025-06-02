@@ -3,11 +3,14 @@ import asyncio
 import requests
 import random 
 import concurrent
+import hashlib
 import aiohttp
 import httpx
 import time
-from typing import List, Optional, Dict, Any, Union, Literal, Annotated
+from typing import List, Optional, Dict, Any, Union, Literal, Annotated, cast
 from urllib.parse import unquote
+from collections import defaultdict
+import itertools
 
 from exa_py import Exa
 from linkup import LinkupClient
@@ -19,12 +22,17 @@ from bs4 import BeautifulSoup
 from markdownify import markdownify
 from pydantic import BaseModel
 from langchain.chat_models import init_chat_model
+from langchain.embeddings import init_embeddings
+from langchain_core.documents import Document
+from langchain_core.embeddings import Embeddings
 from langchain_core.language_models import BaseChatModel
-from langchain_core.tools import InjectedToolArg
 from langchain_core.runnables import RunnableConfig
+from langchain_core.tools import InjectedToolArg
+from langchain_core.vectorstores import InMemoryVectorStore
 from langchain_community.retrievers import ArxivRetriever
 from langchain_community.utilities.pubmed import PubMedAPIWrapper
 from langchain_core.tools import tool
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langsmith import traceable
 
 from open_deep_research.configuration import Configuration
@@ -1384,14 +1392,15 @@ async def tavily_search(
         for result in response['results']:
             url = result['url']
             if url not in unique_results:
-                unique_results[url] = result
+                unique_results[url] = {**result, "query": response['query']}
 
     async def noop():
         return None
 
     configurable = Configuration.from_runnable_config(config)
     max_char_to_include = 30_000
-    if configurable.summarize_search_results:
+    # TODO: share this across all search implementations / tools
+    if configurable.process_search_results == "summarize":
         summarization_model = init_chat_model(model=configurable.summarization_model, model_provider=configurable.summarization_model_provider)
         summarization_tasks = [
             noop() if not result.get("raw_content") else summarize_webpage(summarization_model, result['raw_content'][:max_char_to_include])
@@ -1401,6 +1410,19 @@ async def tavily_search(
         unique_results = {
             url: {'title': result['title'], 'content': result['content'] if summary is None else summary}
             for url, result, summary in zip(unique_results.keys(), unique_results.values(), summaries)
+        }
+    elif configurable.process_search_results == "split_and_rerank":
+        embeddings = init_embeddings("openai:text-embedding-3-small")
+        results_by_query = itertools.groupby(unique_results.values(), key=lambda x: x['query'])
+        all_retrieved_docs = []
+        for query, query_results in results_by_query:
+            retrieved_docs = split_and_rerank_search_results(embeddings, query, query_results)
+            all_retrieved_docs.extend(retrieved_docs)
+
+        stitched_docs = stitch_documents_by_url(all_retrieved_docs)
+        unique_results = {
+            doc.metadata['url']: {'title': doc.metadata['title'], 'content': doc.page_content}
+            for doc in stitched_docs
         }
 
     # Format the unique results
@@ -1526,3 +1548,51 @@ async def summarize_webpage(model: BaseChatModel, webpage_content: str) -> str:
         return f"""<summary>\n{summary.summary}\n</summary>\n\n<key_excerpts>\n{excerpts_str}\n</key_excerpts>"""
 
     return format_summary(summary)
+
+
+def split_and_rerank_search_results(embeddings: Embeddings, query: str, search_results: list[dict], max_chunks: int = 5):
+    # split webpage content into chunks
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=1500, chunk_overlap=200, add_start_index=True
+    )
+    documents = [
+        Document(
+            page_content=result.get('raw_content', result['content']),
+            metadata={"url": result['url'], "title": result['title']}
+        )
+        for result in search_results
+    ]
+    all_splits = text_splitter.split_documents(documents)
+
+    # index chunks
+    vector_store = InMemoryVectorStore(embeddings)
+    vector_store.add_documents(documents=all_splits)
+
+    # retrieve relevant chunks
+    retrieved_docs = vector_store.similarity_search(query, k=max_chunks)
+    return retrieved_docs
+
+
+def stitch_documents_by_url(documents: list[Document]) -> list[Document]:
+    url_to_docs: defaultdict[str, list[Document]] = defaultdict(list)
+    url_to_snippet_hashes: defaultdict[str, set[str]] = defaultdict(set)
+    for doc in documents:
+        snippet_hash = hashlib.sha256(doc.page_content.encode()).hexdigest()
+        url = doc.metadata['url']
+        # deduplicate snippets by the content
+        if snippet_hash in url_to_snippet_hashes[url]:
+            continue
+
+        url_to_docs[url].append(doc)
+        url_to_snippet_hashes[url].add(snippet_hash)
+
+    # stitch retrieved chunks into a single doc per URL
+    stitched_docs = []
+    for docs in url_to_docs.values():
+        stitched_doc = Document(
+            page_content="\n\n".join([f"...{doc.page_content}..." for doc in docs]),
+            metadata=cast(Document, docs[0]).metadata
+        )
+        stitched_docs.append(stitched_doc)
+
+    return stitched_docs
