@@ -45,7 +45,7 @@ Evaluation Instructions:
 class QualityScore(BaseModel):
     """Score the response quality against specific criteria."""
     # TODO: return grades here
-    justification: str = Field(description="The justification for the score, including specific examples from the response.")
+    reasoning: str = Field(description="The reason for the score, including specific examples from the response.")
     score: int = Field(description="Integer score 1-5 showing whether the response meets the provided criteria (1 = doesn't meet at all, 5 = meets all criteria).")
 
 
@@ -101,7 +101,7 @@ An ungrounded report:
 
 class GroundednessScore(BaseModel):
     """Score the response groundedness against specific criteria."""
-    justification: str = Field(description="The justification for the score, including specific examples from the response.")
+    reasoning: str = Field(description="The reason for the score, including specific examples from the response.")
     score: int = Field(description="Integer score 1-5 showing whether the response meets the provided criteria (1 = doesn't meet at all, 5 = meets all criteria).")
 
 
