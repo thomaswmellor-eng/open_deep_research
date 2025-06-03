@@ -1407,11 +1407,11 @@ async def tavily_search(
         else:
             extra_kwargs = {}
 
-        summarization_model = init_chat_model(
+        summarization_model = cast(BaseChatModel, init_chat_model(
             model=configurable.summarization_model,
             model_provider=configurable.summarization_model_provider,
             **extra_kwargs
-        )
+        )).with_retry(stop_after_attempt=2)
         summarization_tasks = [
             noop() if not result.get("raw_content") else summarize_webpage(summarization_model, result['raw_content'][:max_char_to_include])
             for result in unique_results.values()
