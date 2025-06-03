@@ -1,7 +1,12 @@
-from typing import cast
+from typing import cast, Literal
+import uuid
 
 from pydantic import BaseModel, Field
 from langchain_anthropic import ChatAnthropic
+from langgraph.checkpoint.memory import MemorySaver
+from langgraph.types import Command
+
+from open_deep_research.graph import builder
 
 eval_model = ChatAnthropic(
     model="claude-sonnet-4-0",
@@ -155,3 +160,31 @@ def eval_groundedness(inputs: dict, outputs: dict):
     ]))
     # normalize to 0-1
     return {"key": "eval_groundedness", "score": eval_result.score / 5, "comment": eval_result.reasoning}
+
+
+async def generate_report_workflow(
+    query: str,
+    process_search_results: Literal["summarize", "split_and_rerank"] | None = None,
+    include_source: bool = True
+):
+    """Generate a report using the open deep research workflow"""
+    graph = builder.compile(checkpointer=MemorySaver())
+    config = {
+        "configurable": {
+            "thread_id": str(uuid.uuid4()),
+        }
+    }
+    if include_source:
+        config["configurable"]["include_source_str"] = True
+
+    if process_search_results:
+        config["configurable"]["process_search_results"] = process_search_results
+
+    # Run the graph until the interruption
+    await graph.ainvoke(
+        {"topic": query},
+        config
+    )
+    # Pass True to approve the report plan
+    final_state = await graph.ainvoke(Command(resume=True), config)
+    return final_state
