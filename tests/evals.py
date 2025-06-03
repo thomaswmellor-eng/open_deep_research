@@ -135,7 +135,7 @@ def eval_report_quality(inputs: dict, outputs: dict):
         {"role": "user", "content": user_input_content}
     ]))
     # normalize to 0-1
-    return eval_result.score / 5
+    return {"key": "eval_report_quality", "score": eval_result.score / 5, "comment": eval_result.reasoning}
 
 
 def eval_groundedness(inputs: dict, outputs: dict):
@@ -154,4 +154,4 @@ def eval_groundedness(inputs: dict, outputs: dict):
         {"role": "user", "content": user_input_content},
     ]))
     # normalize to 0-1
-    return eval_result.score / 5
+    return {"key": "eval_groundedness", "score": eval_result.score / 5, "comment": eval_result.reasoning}
