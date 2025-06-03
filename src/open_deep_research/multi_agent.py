@@ -152,9 +152,9 @@ async def supervisor_tools(state: ReportState, config: RunnableConfig)  -> Comma
         tool = supervisor_tools_by_name[tool_call["name"]]
         # Perform the tool call - use ainvoke for async tools
         if hasattr(tool, 'ainvoke'):
-            observation = await tool.ainvoke(tool_call["args"])
+            observation = await tool.ainvoke(tool_call["args"], config)
         else:
-            observation = tool.invoke(tool_call["args"])
+            observation = tool.invoke(tool_call["args"], config)
 
         # Append to messages 
         result.append({"role": "tool", 
@@ -258,9 +258,9 @@ async def research_agent_tools(state: SectionState, config: RunnableConfig):
         tool = research_tools_by_name[tool_call["name"]]
         # Perform the tool call - use ainvoke for async tools
         if hasattr(tool, 'ainvoke'):
-            observation = await tool.ainvoke(tool_call["args"])
+            observation = await tool.ainvoke(tool_call["args"], config)
         else:
-            observation = tool.invoke(tool_call["args"])
+            observation = tool.invoke(tool_call["args"], config)
         # Append to messages 
         result.append({"role": "tool", 
                        "content": observation, 
