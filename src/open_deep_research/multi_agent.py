@@ -152,9 +152,9 @@ async def supervisor_tools(state: ReportState, config: RunnableConfig)  -> Comma
         tool = supervisor_tools_by_name[tool_call["name"]]
         # Perform the tool call - use ainvoke for async tools
         if hasattr(tool, 'ainvoke'):
-            observation = await tool.ainvoke(tool_call["args"])
+            observation = await tool.ainvoke(tool_call["args"], config)
         else:
-            observation = tool.invoke(tool_call["args"])
+            observation = tool.invoke(tool_call["args"], config)
 
         # Append to messages 
         result.append({"role": "tool", 
@@ -202,7 +202,7 @@ async def supervisor_tools(state: ReportState, config: RunnableConfig)  -> Comma
         # Default case (for search tools, etc.)
         return Command(goto="supervisor", update={"messages": result})
 
-async def supervisor_should_continue(state: ReportState) -> Literal["supervisor_tools", END]:
+async def supervisor_should_continue(state: ReportState) -> str:
     """Decide if we should continue the loop or stop based upon whether the LLM made a tool call"""
 
     messages = state["messages"]
@@ -258,9 +258,9 @@ async def research_agent_tools(state: SectionState, config: RunnableConfig):
         tool = research_tools_by_name[tool_call["name"]]
         # Perform the tool call - use ainvoke for async tools
         if hasattr(tool, 'ainvoke'):
-            observation = await tool.ainvoke(tool_call["args"])
+            observation = await tool.ainvoke(tool_call["args"], config)
         else:
-            observation = tool.invoke(tool_call["args"])
+            observation = tool.invoke(tool_call["args"], config)
         # Append to messages 
         result.append({"role": "tool", 
                        "content": observation, 
@@ -279,7 +279,7 @@ async def research_agent_tools(state: SectionState, config: RunnableConfig):
         # Continue the research loop for search tools, etc.
         return {"messages": result}
 
-async def research_agent_should_continue(state: SectionState) -> Literal["research_agent_tools", END]:
+async def research_agent_should_continue(state: SectionState) -> str:
     """Decide if we should continue the loop or stop based upon whether the LLM made a tool call"""
 
     messages = state["messages"]
@@ -302,11 +302,7 @@ research_builder.add_edge(START, "research_agent")
 research_builder.add_conditional_edges(
     "research_agent",
     research_agent_should_continue,
-    {
-        # Name returned by should_continue : Name of next node to visit
-        "research_agent_tools": "research_agent_tools",
-        END: END,
-    },
+    ["research_agent_tools", END]
 )
 research_builder.add_edge("research_agent_tools", "research_agent")
 
@@ -321,11 +317,7 @@ supervisor_builder.add_edge(START, "supervisor")
 supervisor_builder.add_conditional_edges(
     "supervisor",
     supervisor_should_continue,
-    {
-        # Name returned by should_continue : Name of next node to visit
-        "supervisor_tools": "supervisor_tools",
-        END: END,
-    },
+    ["supervisor_tools", END]
 )
 supervisor_builder.add_edge("research_team", "supervisor")
 

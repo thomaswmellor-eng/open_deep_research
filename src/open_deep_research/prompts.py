@@ -308,7 +308,10 @@ You are scoping research for a report based on a user-provided topic.
 - You are a reasoning model. Think through problems step-by-step before acting.
 - IMPORTANT: Do not rush to create the report structure. Gather information thoroughly first.
 - Use multiple searches to build a complete picture before drawing conclusions.
-- Maintain a clear, informative, and professional tone throughout."""
+- Maintain a clear, informative, and professional tone throughout.
+
+Today is {today}
+"""
 
 RESEARCH_INSTRUCTIONS = """
 You are a researcher responsible for completing a specific section of a report.
@@ -396,6 +399,8 @@ Before each search query or when writing the section, think through:
 - Keep a professional, factual tone
 - Always follow markdown formatting
 - Stay within the 200 word limit for the main content
+
+Today is {today}
 """
 
 
