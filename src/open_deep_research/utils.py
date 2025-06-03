@@ -1,5 +1,6 @@
 import os
 import asyncio
+import datetime
 import requests
 import random 
 import concurrent
@@ -1614,3 +1615,8 @@ def stitch_documents_by_url(documents: list[Document]) -> list[Document]:
         stitched_docs.append(stitched_doc)
 
     return stitched_docs
+
+
+def get_today_str() -> str:
+    """Get current date in a human-readable format."""
+    return datetime.datetime.now().strftime("%a %b %-d, %Y")

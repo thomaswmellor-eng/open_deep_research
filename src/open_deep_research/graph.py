@@ -34,7 +34,8 @@ from open_deep_research.utils import (
     format_sections, 
     get_config_value, 
     get_search_params, 
-    select_and_execute_search
+    select_and_execute_search,
+    get_today_str
 )
 
 ## Nodes -- 
@@ -85,7 +86,12 @@ async def generate_report_plan(state: ReportState, config: RunnableConfig):
     structured_llm = writer_model.with_structured_output(Queries)
 
     # Format system instructions
-    system_instructions_query = report_planner_query_writer_instructions.format(topic=topic, report_organization=report_structure, number_of_queries=number_of_queries)
+    system_instructions_query = report_planner_query_writer_instructions.format(
+        topic=topic,
+        report_organization=report_structure,
+        number_of_queries=number_of_queries,
+        today=get_today_str()
+    )
 
     # Generate queries  
     results = await structured_llm.ainvoke([SystemMessage(content=system_instructions_query),
@@ -217,7 +223,8 @@ async def generate_queries(state: SectionState, config: RunnableConfig):
     # Format system instructions
     system_instructions = query_writer_instructions.format(topic=topic, 
                                                            section_topic=section.description, 
-                                                           number_of_queries=number_of_queries)
+                                                           number_of_queries=number_of_queries,
+                                                           today=get_today_str())
 
     # Generate queries  
     queries = await structured_llm.ainvoke([SystemMessage(content=system_instructions),

@@ -22,6 +22,8 @@ Make the queries specific enough to find high-quality, relevant sources while co
 <Format>
 Call the Queries tool 
 </Format>
+
+Today is {today}
 """
 
 report_planner_instructions="""I want a plan for a report that is concise and focused.
@@ -102,6 +104,8 @@ Make the queries specific enough to find high-quality, relevant sources.
 <Format>
 Call the Queries tool 
 </Format>
+
+Today is {today}
 """
 
 section_writer_instructions = """Write one section of a research report.
