@@ -3,6 +3,7 @@ from pydantic import BaseModel, Field
 import operator
 
 from langchain.chat_models import init_chat_model
+from langchain_core.messages import AIMessage
 from langchain_core.tools import tool, BaseTool
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import MessagesState
@@ -72,9 +73,16 @@ class Conclusion(BaseModel):
         description="The content of the conclusion, summarizing the report."
     )
 
+# No-op tool to indicate that the report writing is complete
+class FinishReport(BaseModel):
+    """Finish the report."""
+
 ## State
 class ReportStateOutput(TypedDict):
     final_report: str # Final report
+    # for evaluation purposes only
+    # this is included only if configurable.include_source_str is True
+    source_str: str # String of formatted source content from web search
 
 class ReportState(MessagesState):
     sections: list[str] # List of report sections 
@@ -101,7 +109,7 @@ class SectionOutputState(TypedDict):
 def get_supervisor_tools(config: RunnableConfig) -> list[BaseTool]:
     """Get supervisor tools based on configuration"""
     search_tool = get_search_tool(config)
-    return [search_tool, tool(Sections), tool(Introduction), tool(Conclusion)]
+    return [search_tool, tool(Sections), tool(Introduction), tool(Conclusion), tool(FinishReport)]
 
 def get_research_tools(config: RunnableConfig) -> list[BaseTool]:
     """Get research tools based on configuration"""
@@ -128,11 +136,19 @@ async def supervisor(state: ReportState, config: RunnableConfig):
 
     # Get tools based on configuration
     supervisor_tool_list = get_supervisor_tools(config)
-    
+    llm_with_tools = (
+        llm
+        .bind_tools(
+            supervisor_tool_list,
+            parallel_tool_calls=False,
+            # force at least one tool call
+            tool_choice="any"
+        )
+    )
     # Invoke
     return {
         "messages": [
-            await llm.bind_tools(supervisor_tool_list, parallel_tool_calls=False).ainvoke(
+            await llm_with_tools.ainvoke(
                 [
                     {
                         "role": "system",
@@ -211,11 +227,6 @@ async def supervisor_tools(state: ReportState, config: RunnableConfig)  -> Comma
             "final_report": intro_content,
             "messages": result,
         }
-        # Include source string for evaluation
-        if configurable.include_source_str:
-            state_update["source_str"] = source_str
-
-        return Command(goto="supervisor", update=state_update)
     elif conclusion_content:
         # Get all sections and combine in proper order: Introduction, Body Sections, Conclusion
         intro = state.get("final_report", "")
@@ -231,33 +242,28 @@ async def supervisor_tools(state: ReportState, config: RunnableConfig)  -> Comma
             "final_report": complete_report,
             "messages": result,
         }
-        # Include source string for evaluation
-        if configurable.include_source_str:
-            state_update["source_str"] = source_str
-
-        return Command(goto="supervisor", update=state_update)
     else:
         # Default case (for search tools, etc.)
         state_update = {"messages": result}
-        # Include source string for evaluation
-        if configurable.include_source_str:
-            state_update["source_str"] = source_str
 
-        return Command(goto="supervisor", update=state_update)
+    # Include source string for evaluation
+    if configurable.include_source_str and source_str:
+        state_update["source_str"] = source_str
+
+    return Command(goto="supervisor", update=state_update)
 
 async def supervisor_should_continue(state: ReportState) -> str:
     """Decide if we should continue the loop or stop based upon whether the LLM made a tool call"""
 
     messages = state["messages"]
     last_message = messages[-1]
+    # End because the supervisor asked a question or is finished
+    if not last_message.tool_calls or (len(last_message.tool_calls) == 1 and last_message.tool_calls[0]["name"] == "FinishReport"):
+        # Exit the graph
+        return END
 
     # If the LLM makes a tool call, then perform an action
-    if last_message.tool_calls:
-        return "supervisor_tools"
-    
-    # Else end because the supervisor asked a question or is finished
-    else:
-        return END
+    return "supervisor_tools"
 
 async def research_agent(state: SectionState, config: RunnableConfig):
     """LLM decides whether to call a tool or not"""
@@ -325,27 +331,18 @@ async def research_agent_tools(state: SectionState, config: RunnableConfig):
             completed_section = cast(Section, observation)
 
         # Store the source string if a search tool was called
-        if tool_call["name"] in search_tool_names:
+        if tool_call["name"] in search_tool_names and configurable.include_source_str:
             source_str += cast(str, observation)
     
     # After processing all tools, decide what to do next
+    state_update = {"messages": result}
     if completed_section:
         # Write the completed section to state and return to the supervisor
-        state_update = {
-            "messages": result,
-            "completed_sections": [completed_section],
-        }
-        # Include source string for evaluation
-        if configurable.include_source_str:
-            state_update["source_str"] = source_str
-        return state_update
-    else:
-        # Continue the research loop for search tools, etc.
-        state_update = {"messages": result}
-        # Include source string for evaluation
-        if configurable.include_source_str:
-            state_update["source_str"] = source_str
-        return state_update
+        state_update["completed_sections"] = [completed_section]
+    if configurable.include_source_str and source_str:
+        state_update["source_str"] = source_str
+
+    return state_update
 
 async def research_agent_should_continue(state: SectionState) -> str:
     """Decide if we should continue the loop or stop based upon whether the LLM made a tool call"""
