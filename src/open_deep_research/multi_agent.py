@@ -85,13 +85,14 @@ class Conclusion(BaseModel):
         description="The content of the conclusion, summarizing the report."
     )
 
-# No-op tool to indicate that the report writing is complete
 class Question(BaseModel):
     """Ask a follow-up question to clarify the report scope."""
     question: str = Field(
         description="A specific question to ask the user to clarify the scope, focus, or requirements of the report."
     )
 
+
+# No-op tool to indicate that the report writing is complete
 class FinishReport(BaseModel):
     """Finish the report."""
 
@@ -161,7 +162,7 @@ def get_supervisor_tools(config: RunnableConfig) -> list[BaseTool]:
     search_tool = get_search_tool(config)
     tools = [tool(Question), tool(Sections), tool(Introduction), tool(Conclusion), tool(FinishReport)]
     if search_tool is not None:
-        tools.insert(-4, search_tool)  # Add search tool before Question tool if available
+        tools.append(search_tool)  # Add search tool, if available
     return tools
 
 
@@ -170,7 +171,7 @@ async def get_research_tools(config: RunnableConfig) -> list[BaseTool]:
     search_tool = get_search_tool(config)
     tools = [tool(Section)]
     if search_tool is not None:
-        tools.insert(0, search_tool)  # Add search tool at the beginning if available
+        tools.append(search_tool)  # Add search tool, if available
     existing_tool_names = {cast(BaseTool, tool).name for tool in tools}
     mcp_tools = await _load_mcp_tools(config, existing_tool_names)
     tools.extend(mcp_tools)
