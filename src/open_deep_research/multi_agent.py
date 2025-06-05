@@ -173,6 +173,7 @@ async def get_research_tools(config: RunnableConfig) -> list[BaseTool]:
         tools.insert(0, search_tool)  # Add search tool at the beginning if available
     existing_tool_names = {cast(BaseTool, tool).name for tool in tools}
     mcp_tools = await _load_mcp_tools(config, existing_tool_names)
+    print(f"***mcp_tools***: {mcp_tools}")
     tools.extend(mcp_tools)
     return tools
 
