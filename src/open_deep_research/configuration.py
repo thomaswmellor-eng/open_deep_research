@@ -56,12 +56,17 @@ class Configuration:
     # Multi-agent specific configuration
     supervisor_model: str = "openai:gpt-4.1" # Model for supervisor agent in multi-agent setup
     researcher_model: str = "openai:gpt-4.1" # Model for research agents in multi-agent setup 
-
-    # path to the MCP server configuration for multi-agent setup
+    # MCP server configuration for multi-agent setup
     # see examples here: https://github.com/langchain-ai/langchain-mcp-adapters#client-1
+    mcp_server_config: Optional[Dict[str, Any]] = None
+    # path to a JSON file containing the MCP server configuration for multi-agent setup
+    # see examples here: https://github.com/langchain-ai/langchain-mcp-adapters#client-1
+    # NOTE: you can specify either mcp_server_config or mcp_server_config_path, but not both
     mcp_server_config_path: Optional[str] = None
     # optional prompt to append to the researcher agent prompt
     mcp_prompt: Optional[str] = None
+    # optional list of MCP tool names to include in the researcher agent
+    mcp_tools: Optional[list[str]] = None
 
     @classmethod
     def from_runnable_config(

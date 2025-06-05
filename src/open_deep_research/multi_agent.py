@@ -114,12 +114,22 @@ class SectionOutputState(TypedDict):
     source_str: str # String of formatted source content from web search
 
 
-async def _load_mcp_tools(config: RunnableConfig, existing_tool_names: set[str]) -> list[BaseTool]:
+async def _load_mcp_tools(
+    config: RunnableConfig,
+    existing_tool_names: set[str],
+) -> list[BaseTool]:
     configurable = Configuration.from_runnable_config(config)
-    if not configurable.mcp_server_config_path:
+    if configurable.mcp_server_config and configurable.mcp_server_config_path:
+        raise ValueError(
+            "Cannot specify both mcp_server_config and mcp_server_config_path, please specify only one"
+        )
+    elif configurable.mcp_server_config_path:
+        mcp_server_config = await load_mcp_server_config(configurable.mcp_server_config_path)
+    elif configurable.mcp_server_config:
+        mcp_server_config = configurable.mcp_server_config
+    else:
         return []
 
-    mcp_server_config = await load_mcp_server_config(configurable.mcp_server_config_path)
     client = MultiServerMCPClient(mcp_server_config)
     mcp_tools = await client.get_tools()
     filtered_mcp_tools: list[BaseTool] = []
@@ -131,6 +141,9 @@ async def _load_mcp_tools(config: RunnableConfig, existing_tool_names: set[str])
             warnings.warn(
                 f"Trying to add MCP tool with a name {tool.name} that is already in use - this tool will be ignored."
             )
+            continue
+
+        if configurable.mcp_tools and tool.name not in configurable.mcp_tools:
             continue
 
         filtered_mcp_tools.append(tool)
