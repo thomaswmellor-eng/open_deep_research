@@ -1,10 +1,9 @@
 import os
 from enum import Enum
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, fields, field
 from typing import Any, Optional, Dict, Literal
 
 from langchain_core.runnables import RunnableConfig
-from dataclasses import dataclass
 
 DEFAULT_REPORT_STRUCTURE = """Use this structure to create a report on the user-provided topic:
 
@@ -57,6 +56,14 @@ class Configuration:
     # Multi-agent specific configuration
     supervisor_model: str = "openai:gpt-4.1" # Model for supervisor agent in multi-agent setup
     researcher_model: str = "openai:gpt-4.1" # Model for research agents in multi-agent setup 
+    # MCP server configuration for multi-agent setup
+    # see examples here: https://github.com/langchain-ai/langchain-mcp-adapters#client-1
+    mcp_server_config: Optional[Dict[str, Any]] = None
+    # optional prompt to append to the researcher agent prompt
+    mcp_prompt: Optional[str] = None
+    # optional list of MCP tool names to include in the researcher agent
+    # if not set, all MCP tools across all servers in the config will be included
+    mcp_tools: Optional[list[str]] = None
 
     @classmethod
     def from_runnable_config(
