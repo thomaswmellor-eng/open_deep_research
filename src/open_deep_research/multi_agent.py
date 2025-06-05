@@ -1,18 +1,26 @@
 from typing import List, Annotated, TypedDict, Literal, cast
 from pydantic import BaseModel, Field
 import operator
+import warnings
 
 from langchain.chat_models import init_chat_model
-from langchain_core.messages import AIMessage
 from langchain_core.tools import tool, BaseTool
 from langchain_core.runnables import RunnableConfig
+from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.graph import MessagesState
 
 from langgraph.types import Command, Send
 from langgraph.graph import START, END, StateGraph
 
 from open_deep_research.configuration import Configuration
-from open_deep_research.utils import get_config_value, tavily_search, duckduckgo_search, get_today_str
+from open_deep_research.utils import (
+    get_config_value,
+    tavily_search,
+    duckduckgo_search,
+    get_today_str,
+    load_mcp_server_config
+)
+
 from open_deep_research.prompts import SUPERVISOR_INSTRUCTIONS, RESEARCH_INSTRUCTIONS
 
 ## Tools factory - will be initialized based on configuration
@@ -105,16 +113,47 @@ class SectionOutputState(TypedDict):
     # this is included only if configurable.include_source_str is True
     source_str: str # String of formatted source content from web search
 
+
+async def _load_mcp_tools(config: RunnableConfig, existing_tool_names: set[str]) -> list[BaseTool]:
+    configurable = Configuration.from_runnable_config(config)
+    if not configurable.mcp_server_config_path:
+        return []
+
+    mcp_server_config = await load_mcp_server_config(configurable.mcp_server_config_path)
+    client = MultiServerMCPClient(mcp_server_config)
+    mcp_tools = await client.get_tools()
+    filtered_mcp_tools: list[BaseTool] = []
+    for tool in mcp_tools:
+        # TODO: this will likely be hard to manage
+        # on a remote server that's not controlled by the developer
+        # best solution here is allowing tool name prefixes in MultiServerMCPClient
+        if tool.name in existing_tool_names:
+            warnings.warn(
+                f"Trying to add MCP tool with a name {tool.name} that is already in use - this tool will be ignored."
+            )
+            continue
+
+        filtered_mcp_tools.append(tool)
+
+    return filtered_mcp_tools
+
+
 # Tool lists will be built dynamically based on configuration
 def get_supervisor_tools(config: RunnableConfig) -> list[BaseTool]:
     """Get supervisor tools based on configuration"""
     search_tool = get_search_tool(config)
     return [search_tool, tool(Sections), tool(Introduction), tool(Conclusion), tool(FinishReport)]
 
-def get_research_tools(config: RunnableConfig) -> list[BaseTool]:
+
+async def get_research_tools(config: RunnableConfig) -> list[BaseTool]:
     """Get research tools based on configuration"""
     search_tool = get_search_tool(config)
-    return [search_tool, tool(Section)]
+    tools = [search_tool, tool(Section)]
+    existing_tool_names = {cast(BaseTool, tool).name for tool in tools}
+    mcp_tools = await _load_mcp_tools(config, existing_tool_names)
+    tools.extend(mcp_tools)
+    return tools
+
 
 async def supervisor(state: ReportState, config: RunnableConfig):
     """LLM decides whether to call a tool or not"""
@@ -276,7 +315,7 @@ async def research_agent(state: SectionState, config: RunnableConfig):
     llm = init_chat_model(model=researcher_model)
 
     # Get tools based on configuration
-    research_tool_list = get_research_tools(config)
+    research_tool_list = await get_research_tools(config)
     
     return {
         "messages": [
@@ -302,7 +341,7 @@ async def research_agent_tools(state: SectionState, config: RunnableConfig):
     source_str = ""
     
     # Get tools based on configuration
-    research_tool_list = get_research_tools(config)
+    research_tool_list = await get_research_tools(config)
     research_tools_by_name = {tool.name: tool for tool in research_tool_list}
     search_tool_names = {
         tool.name
