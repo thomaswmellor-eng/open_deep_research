@@ -29,6 +29,10 @@ def get_search_tool(config: RunnableConfig):
     configurable = Configuration.from_runnable_config(config)
     search_api = get_config_value(configurable.search_api)
 
+    # Return None if no search tool is requested
+    if search_api.lower() == "none":
+        return None
+
     # TODO: Configure other search functions as tools
     if search_api.lower() == "tavily":
         search_tool = tavily_search
@@ -37,8 +41,8 @@ def get_search_tool(config: RunnableConfig):
     else:
         raise NotImplementedError(
             f"The search API '{search_api}' is not yet supported in the multi-agent implementation. "
-            f"Currently, only Tavily/DuckDuckGo is supported. Please use the graph-based implementation in "
-            f"src/open_deep_research/graph.py for other search APIs, or set search_api to 'tavily' or 'duckduckgo'."
+            f"Currently, only Tavily/DuckDuckGo/None is supported. Please use the graph-based implementation in "
+            f"src/open_deep_research/graph.py for other search APIs, or set search_api to 'tavily', 'duckduckgo', or 'none'."
         )
 
     tool_metadata = {**(search_tool.metadata or {}), "type": "search"}
@@ -82,6 +86,12 @@ class Conclusion(BaseModel):
     )
 
 # No-op tool to indicate that the report writing is complete
+class Question(BaseModel):
+    """Ask a follow-up question to clarify the report scope."""
+    question: str = Field(
+        description="A specific question to ask the user to clarify the scope, focus, or requirements of the report."
+    )
+
 class FinishReport(BaseModel):
     """Finish the report."""
 
@@ -96,6 +106,7 @@ class ReportState(MessagesState):
     sections: list[str] # List of report sections 
     completed_sections: Annotated[list, operator.add] # Send() API key
     final_report: str # Final report
+    question_asked: bool = False # Track if a clarifying question has been asked
     # for evaluation purposes only
     # this is included only if configurable.include_source_str is True
     source_str: Annotated[str, operator.add] # String of formatted source content from web search
@@ -148,13 +159,18 @@ async def _load_mcp_tools(
 def get_supervisor_tools(config: RunnableConfig) -> list[BaseTool]:
     """Get supervisor tools based on configuration"""
     search_tool = get_search_tool(config)
-    return [search_tool, tool(Sections), tool(Introduction), tool(Conclusion), tool(FinishReport)]
+    tools = [tool(Question), tool(Sections), tool(Introduction), tool(Conclusion), tool(FinishReport)]
+    if search_tool is not None:
+        tools.insert(-4, search_tool)  # Add search tool before Question tool if available
+    return tools
 
 
 async def get_research_tools(config: RunnableConfig) -> list[BaseTool]:
     """Get research tools based on configuration"""
     search_tool = get_search_tool(config)
-    tools = [search_tool, tool(Section)]
+    tools = [tool(Section)]
+    if search_tool is not None:
+        tools.insert(0, search_tool)  # Add search tool at the beginning if available
     existing_tool_names = {cast(BaseTool, tool).name for tool in tools}
     mcp_tools = await _load_mcp_tools(config, existing_tool_names)
     tools.extend(mcp_tools)
@@ -181,6 +197,11 @@ async def supervisor(state: ReportState, config: RunnableConfig):
 
     # Get tools based on configuration
     supervisor_tool_list = get_supervisor_tools(config)
+    
+    # Remove Question tool if a question has already been asked
+    if state.get("question_asked", False):
+        supervisor_tool_list = [tool for tool in supervisor_tool_list if tool.name != "Question"]
+    
     llm_with_tools = (
         llm
         .bind_tools(
@@ -241,7 +262,12 @@ async def supervisor_tools(state: ReportState, config: RunnableConfig)  -> Comma
                        "tool_call_id": tool_call["id"]})
         
         # Store special tool results for processing after all tools have been called
-        if tool_call["name"] == "Sections":
+        if tool_call["name"] == "Question":
+            # Question tool was called - return to supervisor to ask the question
+            question_obj = cast(Question, observation)
+            result.append({"role": "assistant", "content": question_obj.question})
+            return Command(goto=END, update={"messages": result, "question_asked": True})
+        elif tool_call["name"] == "Sections":
             sections_list = cast(Sections, observation).sections
         elif tool_call["name"] == "Introduction":
             # Format introduction with proper H1 heading if not already formatted
