@@ -62,6 +62,7 @@ class Configuration:
     # optional prompt to append to the researcher agent prompt
     mcp_prompt: Optional[str] = None
     # optional list of MCP tool names to include in the researcher agent
+    # if not set, all MCP tools across all servers in the config will be included
     mcp_tools: Optional[list[str]] = None
 
     @classmethod
