@@ -401,15 +401,6 @@ Before each search query or when writing the section, think through:
 - Always follow markdown formatting
 - Stay within the 200 word limit for the main content
 
-<mcp tool instructions>
-<langgraph-docs-mcp>
-Step 1: Use `fetch_docs` to read the contents of `llms.txt`.
-Step 2: Review the URLs listed in the file and decide which relate to the user's topic.
-Step 3: Reflect again on the user's research topic to refine your understanding.
-Step 4: Call `fetch_docs` on any relevant URLs to gather source information. Read up to 3 URLs.
-</langgraph-docs-mcp>
-</mcp tool instructions>
-
 Today is {today}
 """
 

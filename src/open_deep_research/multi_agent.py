@@ -316,7 +316,10 @@ async def research_agent(state: SectionState, config: RunnableConfig):
 
     # Get tools based on configuration
     research_tool_list = await get_research_tools(config)
-    
+    system_prompt = RESEARCH_INSTRUCTIONS.format(section_description=state["section"], today=get_today_str())
+    if configurable.mcp_prompt:
+        system_prompt += "\n\n{configurable.mcp_prompt}"
+
     return {
         "messages": [
             # Enforce tool calling to either perform more search or call the Section tool to write the section
@@ -324,7 +327,7 @@ async def research_agent(state: SectionState, config: RunnableConfig):
                 [
                     {
                         "role": "system",
-                        "content": RESEARCH_INSTRUCTIONS.format(section_description=state["section"], today=get_today_str())
+                        "content": system_prompt
                     }
                 ]
                 + state["messages"]

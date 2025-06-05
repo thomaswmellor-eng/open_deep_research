@@ -60,6 +60,8 @@ class Configuration:
     # path to the MCP server configuration for multi-agent setup
     # see examples here: https://github.com/langchain-ai/langchain-mcp-adapters#client-1
     mcp_server_config_path: Optional[str] = None
+    # optional prompt to append to the researcher agent prompt
+    mcp_prompt: Optional[str] = None
 
     @classmethod
     def from_runnable_config(
