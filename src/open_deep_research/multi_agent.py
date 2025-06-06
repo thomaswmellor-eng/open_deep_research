@@ -355,7 +355,11 @@ async def research_agent(state: SectionState, config: RunnableConfig):
 
     # Get tools based on configuration
     research_tool_list = await get_research_tools(config)
-    system_prompt = RESEARCH_INSTRUCTIONS.format(section_description=state["section"], today=get_today_str())
+    system_prompt = RESEARCH_INSTRUCTIONS.format(
+        section_description=state["section"],
+        number_of_queries=configurable.number_of_queries,
+        today=get_today_str(),
+    )
     if configurable.mcp_prompt:
         system_prompt += f"\n\n{configurable.mcp_prompt}"
 
