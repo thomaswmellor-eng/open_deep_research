@@ -110,7 +110,7 @@ class ReportState(MessagesState):
     sections: list[str] # List of report sections 
     completed_sections: Annotated[list[Section], operator.add] # Send() API key
     final_report: str # Final report
-    question_asked: bool = False # Track if a clarifying question has been asked
+    question_asked: bool # Track if a clarifying question has been asked
     # for evaluation purposes only
     # this is included only if configurable.include_source_str is True
     source_str: Annotated[str, operator.add] # String of formatted source content from web search
@@ -151,7 +151,7 @@ async def _load_mcp_tools(
             )
             continue
 
-        if configurable.mcp_tools and tool.name not in configurable.mcp_tools:
+        if configurable.mcp_tools_to_include and tool.name not in configurable.mcp_tools_to_include:
             continue
 
         filtered_mcp_tools.append(tool)
@@ -162,8 +162,11 @@ async def _load_mcp_tools(
 # Tool lists will be built dynamically based on configuration
 def get_supervisor_tools(config: RunnableConfig) -> list[BaseTool]:
     """Get supervisor tools based on configuration"""
+    configurable = Configuration.from_runnable_config(config)
     search_tool = get_search_tool(config)
-    tools = [tool(Question), tool(Sections), tool(Introduction), tool(Conclusion), tool(FinishReport)]
+    tools = [tool(Sections), tool(Introduction), tool(Conclusion), tool(FinishReport)]
+    if configurable.ask_for_clarification:
+        tools.append(tool(Question))
     if search_tool is not None:
         tools.append(search_tool)  # Add search tool, if available
     return tools

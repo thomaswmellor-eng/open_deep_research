@@ -187,7 +187,7 @@ config = {
             }
         },
         "mcp_prompt": "Step 1: Use the `list_allowed_directories` tool to get the list of allowed directories. Step 2: Use the `read_file` tool to read files in the allowed directory.",
-        "mcp_tools": ["list_allowed_directories", "read_file"]  # Optional: specify which tools to include
+        "mcp_tools_to_include": ["list_allowed_directories", "read_file"]  # Optional: specify which tools to include
     }
 }
 ```
@@ -239,7 +239,7 @@ i just want a single section report on vibe coding that highlights an interestin
 
 - **`mcp_server_config`**: Dictionary defining MCP server configurations (see [langchain-mcp-adapters examples](https://github.com/langchain-ai/langchain-mcp-adapters#client-1))
 - **`mcp_prompt`**: Optional instructions added to research agent prompts for using MCP tools
-- **`mcp_tools`**: Optional list of specific MCP tool names to include (if not set, all tools from all servers are included)
+- **`mcp_tools_to_include`**: Optional list of specific MCP tool names to include (if not set, all tools from all servers are included)
 - **`search_api`**: Set to `"none"` to use only MCP tools, or keep existing search APIs to combine both
 
 ### Common Use Cases
