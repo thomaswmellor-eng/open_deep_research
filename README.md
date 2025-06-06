@@ -245,6 +245,10 @@ Follow-up to the question asked by the research agent:
 I just want a single section report on vibe coding that highlights an interesting / fun example
 ```
 
+Resulting trace: 
+
+https://smith.langchain.com/public/d871311a-f288-4885-8f70-440ab557c3cf/r
+
 ### Configuration Options
 
 - **`mcp_server_config`**: Dictionary defining MCP server configurations (see [langchain-mcp-adapters examples](https://github.com/langchain-ai/langchain-mcp-adapters#client-1))

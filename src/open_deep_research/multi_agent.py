@@ -371,6 +371,11 @@ async def research_agent(state: SectionState, config: RunnableConfig):
     if configurable.mcp_prompt:
         system_prompt += f"\n\n{configurable.mcp_prompt}"
 
+    # Ensure we have at least one user message (required by Anthropic)
+    messages = state.get("messages", [])
+    if not messages:
+        messages = [{"role": "user", "content": f"Please research and write the section: {state['section']}"}]
+
     return {
         "messages": [
             # Enforce tool calling to either perform more search or call the Section tool to write the section
@@ -384,7 +389,7 @@ async def research_agent(state: SectionState, config: RunnableConfig):
                         "content": system_prompt
                     }
                 ]
-                + state["messages"]
+                + messages
             )
         ]
     }
