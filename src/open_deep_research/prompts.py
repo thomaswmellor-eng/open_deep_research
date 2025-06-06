@@ -350,11 +350,15 @@ You are a researcher responsible for completing a specific section of a report.
       - At least 3 high-quality sources with diverse perspectives
       - Both breadth (covering all aspects) and depth (specific details) of information
 
-3. **Use the Section Tool**  
-   Only after thorough research, write a high-quality section using the Section tool:
-   - `name`: The title of the section
-   - `description`: The scope of research you completed (brief, 1-2 sentences)
-   - `content`: The completed body of text for the section, which MUST:
+3. **REQUIRED: Two-Step Completion Process**  
+   You MUST complete your work in exactly two steps:
+   
+   **Step 1: Write Your Section**
+   - After gathering sufficient research information, call the Section tool to write your section
+   - The Section tool parameters are:
+     - `name`: The title of the section
+     - `description`: The scope of research you completed (brief, 1-2 sentences)
+     - `content`: The completed body of text for the section, which MUST:
      - Begin with the section title formatted as "## [Section Title]" (H2 level with ##)
      - Be formatted in Markdown style
      - Be MAXIMUM 200 words (strictly enforce this limit)
@@ -373,6 +377,11 @@ Example format for content:
 2. [URL 2]
 3. [URL 3]
 ```
+
+   **Step 2: Signal Completion**
+   - Immediately after calling the Section tool, call the FinishResearch tool
+   - This signals that your research work is complete and the section is ready
+   - Do not skip this step - the FinishResearch tool is required to properly complete your work
 
 ---
 
@@ -395,6 +404,7 @@ Before each search query or when writing the section, think through:
 ---
 
 ### Notes:
+- **CRITICAL**: You MUST call the Section tool to complete your work - this is not optional
 - Focus on QUALITY over QUANTITY of searches
 - Each search should have a clear, distinct purpose
 - Do not write introductions or conclusions unless explicitly part of your section

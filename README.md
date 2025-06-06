@@ -217,9 +217,22 @@ Step 1: Use the `list_allowed_directories` tool to get the list of allowed direc
 MCP tools: 
 ```
 list_allowed_directories
+list_directory 
 read_file
 ```
 
+Example test case that you can provide: 
+
+Topic:
+```
+i want an overview of vibe coding
+```
+
+Follow-up to the question asked by the research agent: 
+
+```
+i just want a single section report on vibe coding that highlights an interesting / fun example
+```
 
 
 ### Configuration Options

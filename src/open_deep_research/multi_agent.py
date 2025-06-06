@@ -91,6 +91,9 @@ class Question(BaseModel):
         description="A specific question to ask the user to clarify the scope, focus, or requirements of the report."
     )
 
+# No-op tool to indicate that the research is complete
+class FinishResearch(BaseModel):
+    """Finish the research."""
 
 # No-op tool to indicate that the report writing is complete
 class FinishReport(BaseModel):
@@ -105,7 +108,7 @@ class ReportStateOutput(TypedDict):
 
 class ReportState(MessagesState):
     sections: list[str] # List of report sections 
-    completed_sections: Annotated[list, operator.add] # Send() API key
+    completed_sections: Annotated[list[Section], operator.add] # Send() API key
     final_report: str # Final report
     question_asked: bool = False # Track if a clarifying question has been asked
     # for evaluation purposes only
@@ -169,7 +172,7 @@ def get_supervisor_tools(config: RunnableConfig) -> list[BaseTool]:
 async def get_research_tools(config: RunnableConfig) -> list[BaseTool]:
     """Get research tools based on configuration"""
     search_tool = get_search_tool(config)
-    tools = [tool(Section)]
+    tools = [tool(Section), tool(FinishResearch)]
     if search_tool is not None:
         tools.append(search_tool)  # Add search tool, if available
     existing_tool_names = {cast(BaseTool, tool).name for tool in tools}
@@ -356,7 +359,10 @@ async def research_agent(state: SectionState, config: RunnableConfig):
     return {
         "messages": [
             # Enforce tool calling to either perform more search or call the Section tool to write the section
-            await llm.bind_tools(research_tool_list).ainvoke(
+            await llm.bind_tools(research_tool_list,             
+                                 parallel_tool_calls=False,
+                                 # force at least one tool call
+                                 tool_choice="any").ainvoke(
                 [
                     {
                         "role": "system",
@@ -425,12 +431,11 @@ async def research_agent_should_continue(state: SectionState) -> str:
     messages = state["messages"]
     last_message = messages[-1]
 
-    # If the LLM makes a tool call, then perform an action
-    if last_message.tool_calls:
-        return "research_agent_tools"
-
-    else:
+    if last_message.tool_calls[0]["name"] == "FinishResearch":
+        # Research is done - return to supervisor
         return END
+    else:
+        return "research_agent_tools"
     
 """Build the multi-agent workflow"""
 
