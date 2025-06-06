@@ -157,7 +157,7 @@ This implementation focuses on efficiency and parallelization, making it ideal f
 
 The multi-agent implementation (`src/open_deep_research/multi_agent.py`) supports MCP servers to extend research capabilities beyond web search. MCP tools are available to research agents alongside or instead of traditional search tools, enabling access to local files, databases, APIs, and other data sources.
 
-**Note**: MCP support is currently only available in the multi-agent implementation, not in the graph-based workflow implementation.
+**Note**: MCP support is currently only available in the multi-agent (`src/open_deep_research/multi_agent.py`) implementation, not in the workflow-based workflow implementation (`src/open_deep_research/graph.py`).
 
 ### Key Features
 
@@ -187,7 +187,7 @@ config = {
             }
         },
         "mcp_prompt": "Step 1: Use the `list_allowed_directories` tool to get the list of allowed directories. Step 2: Use the `read_file` tool to read files in the allowed directory.",
-        "mcp_tools_to_include": ["list_allowed_directories", "read_file"]  # Optional: specify which tools to include
+        "mcp_tools_to_include": ["list_allowed_directories", "list_directory", "read_file"]  # Optional: specify which tools to include
     }
 }
 ```
@@ -225,15 +225,14 @@ Example test case that you can provide:
 
 Topic:
 ```
-i want an overview of vibe coding
+I want an overview of vibe coding
 ```
 
 Follow-up to the question asked by the research agent: 
 
 ```
-i just want a single section report on vibe coding that highlights an interesting / fun example
+I just want a single section report on vibe coding that highlights an interesting / fun example
 ```
-
 
 ### Configuration Options
 
