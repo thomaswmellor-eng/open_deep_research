@@ -78,8 +78,8 @@ class MultiAgentConfiguration:
     
     # Multi-agent specific configuration
     number_of_queries: int = 2 # Number of search queries to generate per section
-    supervisor_model: str = "anthropic:claude-sonnet-4-20250514"
-    researcher_model: str = "anthropic:claude-sonnet-4-20250514"
+    supervisor_model: str = "anthropic:claude-3-5-sonnet-latest"
+    researcher_model: str = "anthropic:claude-3-5-sonnet-latest"
     ask_for_clarification: bool = False # Whether to ask for clarification from the user
     # MCP server configuration
     mcp_server_config: Optional[Dict[str, Any]] = None
