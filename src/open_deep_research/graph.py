@@ -210,7 +210,7 @@ async def generate_queries(state: SectionState, config: RunnableConfig):
     section = state["section"]
 
     # Get configuration
-    configurable = Configuration.from_runnable_config(config)
+    configurable = WorkflowConfiguration.from_runnable_config(config)
     number_of_queries = configurable.number_of_queries
 
     # Generate queries 
@@ -252,7 +252,7 @@ async def search_web(state: SectionState, config: RunnableConfig):
     search_queries = state["search_queries"]
 
     # Get configuration
-    configurable = Configuration.from_runnable_config(config)
+    configurable = WorkflowConfiguration.from_runnable_config(config)
     search_api = get_config_value(configurable.search_api)
     search_api_config = configurable.search_api_config or {}  # Get the config dict, default to empty
     params_to_pass = get_search_params(search_api, search_api_config)  # Filter parameters
@@ -289,7 +289,7 @@ async def write_section(state: SectionState, config: RunnableConfig) -> Command[
     source_str = state["source_str"]
 
     # Get configuration
-    configurable = Configuration.from_runnable_config(config)
+    configurable = WorkflowConfiguration.from_runnable_config(config)
 
     # Format system instructions
     section_writer_inputs_formatted = section_writer_inputs.format(topic=topic, 
@@ -368,7 +368,7 @@ async def write_final_sections(state: SectionState, config: RunnableConfig):
     """
 
     # Get configuration
-    configurable = Configuration.from_runnable_config(config)
+    configurable = WorkflowConfiguration.from_runnable_config(config)
 
     # Get state 
     topic = state["topic"]
@@ -430,7 +430,7 @@ def compile_final_report(state: ReportState, config: RunnableConfig):
     """
 
     # Get configuration
-    configurable = Configuration.from_runnable_config(config)
+    configurable = WorkflowConfiguration.from_runnable_config(config)
 
     # Get sections
     sections = state["sections"]

@@ -222,7 +222,13 @@ MCP server config:
 
 MCP prompt: 
 ```
-Use the `list_allowed_directories` tool to get the list of allowed directories, use the `list_directory` tool to get the list of files in the allowed directory, and use the `read_file` tool to read files in the allowed directory.
+CRITICAL: You MUST follow this EXACT sequence when using filesystem tools:
+
+1. FIRST: Call `list_allowed_directories` tool to discover allowed directories
+2. SECOND: Call `list_directory` tool on a specific directory from step 1 to see available files  
+3. THIRD: Call `read_file` tool to read specific files found in step 2
+
+DO NOT call `list_directory` or `read_file` until you have first called `list_allowed_directories`. You must discover the allowed directories before attempting to browse or read files.
 ```
 
 MCP tools: 

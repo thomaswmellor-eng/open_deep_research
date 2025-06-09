@@ -99,7 +99,7 @@ class FinishReport(BaseModel):
     """Finish the report."""
 
 ## State
-class ReportStateOutput(TypedDict):
+class ReportStateOutput(MessagesState):
     final_report: str # Final report
     # for evaluation purposes only
     # this is included only if configurable.include_source_str is True
@@ -109,7 +109,6 @@ class ReportState(MessagesState):
     sections: list[str] # List of report sections 
     completed_sections: Annotated[list[Section], operator.add] # Send() API key
     final_report: str # Final report
-    question_asked: bool # Track if a clarifying question has been asked
     # for evaluation purposes only
     # this is included only if configurable.include_source_str is True
     source_str: Annotated[str, operator.add] # String of formatted source content from web search
@@ -207,9 +206,6 @@ async def supervisor(state: ReportState, config: RunnableConfig):
     # Get tools based on configuration
     supervisor_tool_list = await get_supervisor_tools(config)
     
-    # Remove Question tool if a question has already been asked
-    if state.get("question_asked", False):
-        supervisor_tool_list = [tool for tool in supervisor_tool_list if tool.name != "Question"]
     
     llm_with_tools = (
         llm
@@ -281,7 +277,7 @@ async def supervisor_tools(state: ReportState, config: RunnableConfig)  -> Comma
             # Question tool was called - return to supervisor to ask the question
             question_obj = cast(Question, observation)
             result.append({"role": "assistant", "content": question_obj.question})
-            return Command(goto=END, update={"messages": result, "question_asked": True})
+            return Command(goto=END, update={"messages": result})
         elif tool_call["name"] == "Sections":
             sections_list = cast(Sections, observation).sections
         elif tool_call["name"] == "Introduction":
