@@ -44,10 +44,10 @@ class WorkflowConfiguration:
     number_of_queries: int = 2 # Number of search queries to generate per iteration
     max_search_depth: int = 2 # Maximum number of reflection + search iterations
     planner_provider: str = "anthropic"
-    planner_model: str = "claude-sonnet-4-20250514"
+    planner_model: str = "claude-3-7-sonnet-latest"
     planner_model_kwargs: Optional[Dict[str, Any]] = None
     writer_provider: str = "anthropic"
-    writer_model: str = "claude-sonnet-4-20250514"
+    writer_model: str = "claude-3-7-sonnet-latest"
     writer_model_kwargs: Optional[Dict[str, Any]] = None
 
     @classmethod
@@ -78,9 +78,9 @@ class MultiAgentConfiguration:
     
     # Multi-agent specific configuration
     number_of_queries: int = 2 # Number of search queries to generate per section
-    supervisor_model: str = "anthropic:claude-sonnet-4-20250514"
-    researcher_model: str = "anthropic:claude-sonnet-4-20250514"
-    ask_for_clarification: bool = True # Whether to ask for clarification from the user
+    supervisor_model: str = "anthropic:claude-3-7-sonnet-latest"
+    researcher_model: str = "anthropic:claude-3-7-sonnet-latest"
+    ask_for_clarification: bool = False # Whether to ask for clarification from the user
     # MCP server configuration
     mcp_server_config: Optional[Dict[str, Any]] = None
     mcp_prompt: Optional[str] = None
