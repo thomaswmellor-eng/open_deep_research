@@ -182,7 +182,7 @@ def test_response_criteria_evaluation(research_agent, search_api, models, eval_m
             "supervisor_model": models.get("supervisor_model"),
             "researcher_model": models.get("researcher_model"),
             "ask_for_clarification": False, # Don't ask for clarification from the user and proceed to write the report
-            # "process_search_results": "summarize", # Optionally summarize 
+            "process_search_results": "summarize", # Optionally summarize 
         }
         
         thread_config = {"configurable": config}
