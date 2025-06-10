@@ -36,50 +36,19 @@ class WorkflowConfiguration:
     search_api: SearchAPI = SearchAPI.TAVILY
     search_api_config: Optional[Dict[str, Any]] = None
     process_search_results: Literal["summarize", "split_and_rerank"] | None = None
-<<<<<<< HEAD
-    # Summarization model for summarizing search results
-    # will be used if summarize_search_results is True
     summarization_model_provider: str = "anthropic"
     summarization_model: str = "claude-3-5-haiku-latest"
-    # Whether to include search results string in the agent output state
-    # This is used for evaluation purposes only
-=======
-    summarization_model_provider: str = "anthropic"
-    summarization_model: str = "claude-3-5-haiku-latest"
->>>>>>> origin
     include_source_str: bool = False
     
     # Workflow-specific configuration
     number_of_queries: int = 2 # Number of search queries to generate per iteration
     max_search_depth: int = 2 # Maximum number of reflection + search iterations
-<<<<<<< HEAD
-    planner_provider: str = "anthropic"  # Defaults to Anthropic as provider
-    planner_model: str = "claude-3-7-sonnet-latest" # Defaults to claude-3-7-sonnet-latest
-    planner_model_kwargs: Optional[Dict[str, Any]] = None # kwargs for planner_model
-    writer_provider: str = "anthropic" # Defaults to Anthropic as provider
-    writer_model: str = "claude-3-5-sonnet-latest" # Defaults to claude-3-5-sonnet-latest
-    writer_model_kwargs: Optional[Dict[str, Any]] = None # kwargs for writer_model
-    
-    # Multi-agent specific configuration
-    supervisor_model: str = "openai:gpt-4.1" # Model for supervisor agent in multi-agent setup
-    researcher_model: str = "openai:gpt-4.1" # Model for research agents in multi-agent setup 
-    ask_for_clarification: bool = False # Whether to ask for clarification from the user
-    # MCP server configuration for multi-agent setup
-    # see examples here: https://github.com/langchain-ai/langchain-mcp-adapters#client-1
-    mcp_server_config: Optional[Dict[str, Any]] = None
-    # optional prompt to append to the researcher agent prompt
-    mcp_prompt: Optional[str] = None
-    # optional list of MCP tool names to include in the researcher agent
-    # if not set, all MCP tools across all servers in the config will be included
-    mcp_tools_to_include: Optional[list[str]] = None
-=======
     planner_provider: str = "anthropic"
     planner_model: str = "claude-3-7-sonnet-latest"
     planner_model_kwargs: Optional[Dict[str, Any]] = None
     writer_provider: str = "anthropic"
     writer_model: str = "claude-3-7-sonnet-latest"
     writer_model_kwargs: Optional[Dict[str, Any]] = None
->>>>>>> origin
 
     @classmethod
     def from_runnable_config(

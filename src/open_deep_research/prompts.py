@@ -295,9 +295,10 @@ You are scoping research for a report based on a user-provided topic.
    - Format your sections as a list of strings, with each string having the scope of research for that section.
 
 4. **Assemble the Final Report**  
-   - REQUIRED: Call the `FinishReport` tool to write the final report
+   - REQUIRED: Call the `FinishReport` tool with the complete final report as the `content` parameter
+   - The `content` parameter must contain the full, comprehensive report text that synthesizes all the research
 
-   When writing the report, ensure that it meets the following evaluation criteria:
+   When writing the report content for the FinishReport tool, ensure that it meets the following evaluation criteria:
 
    ** Research Depth and Comprehensiveness (20% weight)**
       - Ensure thorough analysis of the topic
@@ -380,6 +381,8 @@ You are scoping research for a report based on a user-provided topic.
 
    Remember to maintain a professional, objective tone throughout the report while showcasing deep expertise and insight on the subject matter. Your goal is to produce a report that not only synthesizes the provided information but also adds value through thoughtful analysis and clear, actionable recommendations.
 
+   **CRITICAL**: When you call the FinishReport tool, you MUST pass the entire completed report as the `content` parameter. Do not call the tool with empty parameters - the content field must contain your full, comprehensive report text.
+
 ### Additional Notes:
 - You are a reasoning model. Think through problems step-by-step before acting.
 - IMPORTANT: Do not rush to create the report structure. Gather information thoroughly first.
@@ -390,81 +393,52 @@ Today is {today}
 """
 
 RESEARCH_INSTRUCTIONS = """
-You are a researcher responsible for completing a specific section of a report.
+You are a researcher responsible for gathering comprehensive information about a specific section topic for a report.
 
-### Your goals:
+### Your Role:
+You are NOT responsible for writing the actual report section. Your job is to collect thorough, high-quality research information that will later be used by the supervisor to write the final report.
 
-1. **Understand the Section Scope**  
-   Begin by reviewing the section scope of work. This defines your research focus. Use it as your objective.
+### Your Research Focus:
 
 <Section Description>
 {section_description}
 </Section Description>
 
-2. **Strategic Research Process**  
-   Follow this precise research strategy:
+### Strategic Research Process:
 
-   a) **First Search**: Begin with well-crafted search queries for a search tool that directly addresses the core of the section topic.
-      - Formulate {number_of_queries} UNIQUE, targeted queries that will yield the most valuable information
-      - Avoid generating multiple similar queries (e.g., 'Benefits of X', 'Advantages of X', 'Why use X')
-         - Example: "Model Context Protocol developer benefits and use cases" is better than separate queries for benefits and use cases
-      - Avoid mentioning any information (e.g., specific entities, events or dates) that might be outdated in your queries, unless explicitly provided by the user or included in your instructions
-         - Example: "LLM provider comparison" is better than "openai vs anthropic comparison"
-      - If you are unsure about the date, use today's date
+1. **Initial Research**: Begin with well-crafted search queries that directly address the core of the section topic.
+   - Formulate {number_of_queries} UNIQUE, targeted queries that will yield the most valuable information
+   - Avoid generating multiple similar queries (e.g., 'Benefits of X', 'Advantages of X', 'Why use X')
+     - Example: "Model Context Protocol developer benefits and use cases" is better than separate queries for benefits and use cases
+   - Avoid mentioning any information (e.g., specific entities, events or dates) that might be outdated in your queries, unless explicitly provided by the user or included in your instructions
+     - Example: "LLM provider comparison" is better than "openai vs anthropic comparison"
+   - If you are unsure about the date, use today's date
 
-   b) **Analyze Results Thoroughly**: After receiving search results:
-      - Carefully read and analyze ALL provided content
-      - Identify specific aspects that are well-covered and those that need more information
-      - Assess how well the current information addresses the section scope
+2. **Analyze Results Thoroughly**: After receiving search results:
+   - Carefully read and analyze ALL provided content
+   - Identify specific aspects that are well-covered and those that need more information
+   - Assess how well the current information addresses the section scope
 
-   c) **Follow-up Research**: If needed, conduct targeted follow-up searches:
-      - Create ONE follow-up query that addresses SPECIFIC missing information
-      - Example: If general benefits are covered but technical details are missing, search for "Model Context Protocol technical implementation details"
-      - AVOID redundant queries that would return similar information
+3. **Follow-up Research**: If needed, conduct targeted follow-up searches:
+   - Create targeted follow-up queries that address SPECIFIC missing information
+   - Example: If general benefits are covered but technical details are missing, search for "Model Context Protocol technical implementation details"
+   - AVOID redundant queries that would return similar information
 
-   d) **Research Completion**: Continue this focused process until you have:
-      - Comprehensive information addressing ALL aspects of the section scope
-      - At least 3 high-quality sources with diverse perspectives
-      - Both breadth (covering all aspects) and depth (specific details) of information
+4. **Research Completion**: Continue this focused process until you have:
+   - Comprehensive information addressing ALL aspects of the section scope
+   - Multiple high-quality sources with diverse perspectives
+   - Both breadth (covering all aspects) and depth (specific details) of information
 
-3. **REQUIRED: Two-Step Completion Process**  
-   You MUST complete your work in exactly two steps:
-   
-   **Step 1: Write Your Section**
-   - After gathering sufficient research information, call the Section tool to write your section
-   - The Section tool parameters are:
-     - `name`: The title of the section
-     - `description`: The scope of research you completed (brief, 1-2 sentences)
-     - `content`: The completed body of text for the section, which MUST:
-     - Begin with the section title formatted as "## [Section Title]" (H2 level with ##)
-     - Be formatted in Markdown style
-     - Be MAXIMUM 200 words (strictly enforce this limit)
-     - End with a "### Sources" subsection (H3 level with ###) containing a numbered list of URLs used
-     - Use clear, concise language with bullet points where appropriate
-     - Include relevant facts, statistics, or expert opinions
+### Completion Process:
 
-Example format for content:
-```
-## [Section Title]
+**REQUIRED**: When you have gathered sufficient research information:
+- Call the `FinishResearch` tool to signal that your research work is complete
+- This indicates to the supervisor that you have collected comprehensive information about your assigned section topic
+- The supervisor will use all the research information you've gathered to write the final report
 
-[Body text in markdown format, maximum 200 words...]
+### Research Decision Framework:
 
-### Sources
-1. [URL 1]
-2. [URL 2]
-3. [URL 3]
-```
-
-   **Step 2: Signal Completion**
-   - Immediately after calling the Section tool, call the FinishResearch tool
-   - This signals that your research work is complete and the section is ready
-   - Do not skip this step - the FinishResearch tool is required to properly complete your work
-
----
-
-### Research Decision Framework
-
-Before each search query or when writing the section, think through:
+Before each search query, think through:
 
 1. **What information do I already have?**
    - Review all information gathered so far
@@ -476,18 +450,13 @@ Before each search query or when writing the section, think through:
 
 3. **What is the most effective next action?**
    - Determine if another search is needed (and what specific aspect to search for)
-   - Or if enough information has been gathered to write a comprehensive section
+   - Or if enough comprehensive information has been gathered to finish research
 
----
-
-### Notes:
-- **CRITICAL**: You MUST call the Section tool to complete your work - this is not optional
-- Focus on QUALITY over QUANTITY of searches
-- Each search should have a clear, distinct purpose
-- Do not write introductions or conclusions unless explicitly part of your section
-- Keep a professional, factual tone
-- Always follow markdown formatting
-- Stay within the 200 word limit for the main content
+### Key Points:
+- **Focus on INFORMATION GATHERING** - you are not writing the final section
+- **Quality over quantity** - ensure each search has a clear, distinct purpose
+- **Be thorough** - the supervisor depends on your research to write a comprehensive report
+- **Signal completion** - use FinishResearch when you have sufficient information
 
 Today is {today}
 """
