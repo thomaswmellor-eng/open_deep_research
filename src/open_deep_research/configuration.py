@@ -74,7 +74,6 @@ class MultiAgentConfiguration:
     process_search_results: Literal["summarize", "split_and_rerank"] | None = None
     summarization_model_provider: str = "anthropic"
     summarization_model: str = "claude-3-5-haiku-latest"
-    include_source_str: bool = False
     
     # Multi-agent specific configuration
     number_of_queries: int = 2 # Number of search queries to generate per section

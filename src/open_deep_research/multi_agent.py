@@ -104,7 +104,6 @@ class FinishReport(BaseModel):
 class ReportStateOutput(MessagesState):
     final_report: str # Final report
     # for evaluation purposes only
-    # this is included only if configurable.include_source_str is True
     source_str: str # String of formatted source content from web search
 
 class ReportState(MessagesState):
@@ -112,21 +111,18 @@ class ReportState(MessagesState):
     completed_sections: Annotated[list[Section], operator.add] # Send() API key
     final_report: str # Final report
     # for evaluation purposes only
-    # this is included only if configurable.include_source_str is True
     source_str: Annotated[str, operator.add] # String of formatted source content from web search
 
 class SectionState(MessagesState):
     section: str # Report section  
     completed_sections: list[Section] # Final key we duplicate in outer state for Send() API
     # for evaluation purposes only
-    # this is included only if configurable.include_source_str is True
-    source_str: str # String of formatted source content from web search
+    source_str: list[str] # String of formatted source content from web search
 
 class SectionOutputState(TypedDict):
     completed_sections: list[Section] # Final key we duplicate in outer state for Send() API
     # for evaluation purposes only
-    # this is included only if configurable.include_source_str is True
-    source_str: str # String of formatted source content from web search
+    source_str: list[str] # String of formatted source content from web search
 
 
 async def _load_mcp_tools(
@@ -244,18 +240,10 @@ async def supervisor_tools(state: ReportState, config: RunnableConfig)  -> Comma
 
     result = []
     sections_list = []
-    intro_content = None
-    conclusion_content = None
-    source_str = ""
 
     # Get tools based on configuration
     supervisor_tool_list = await get_supervisor_tools(config)
     supervisor_tools_by_name = {tool.name: tool for tool in supervisor_tool_list}
-    search_tool_names = {
-        tool.name
-        for tool in supervisor_tool_list
-        if tool.metadata is not None and tool.metadata.get("type") == "search"
-    }
 
     # First process all tool calls to ensure we respond to each one (required for OpenAI)
     for tool_call in state["messages"][-1].tool_calls:
@@ -386,13 +374,13 @@ async def research_agent_tools(state: SectionState, config: RunnableConfig):
                        "tool_call_id": tool_call["id"]})
     
     # After processing all tools, decide what to do next
-    state_update = {"messages": result}
+    state_update = {"messages": result, "source_str": []}
     
     # If FinishResearch was called, extract ALL research content from this agent's conversation
-    if finish_research_called and configurable.include_source_str:
+    if finish_research_called:
         # Extract all research content from the complete message history (including current results)
         all_research = extract_research_content(state["messages"] + result)
-        state_update["source_str"] = all_research
+        state_update["source_str"] = [all_research]
 
     return state_update
 
