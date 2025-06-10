@@ -295,93 +295,7 @@ You are scoping research for a report based on a user-provided topic.
    - Format your sections as a list of strings, with each string having the scope of research for that section.
 
 4. **Assemble the Final Report**  
-   - REQUIRED: Call the `FinishReport` tool with the complete final report as the `content` parameter
-   - The `content` parameter must contain the full, comprehensive report text that synthesizes all the research
-
-   When writing the report content for the FinishReport tool, ensure that it meets the following evaluation criteria:
-
-   ** Research Depth and Comprehensiveness (20% weight)**
-      - Ensure thorough analysis of the topic
-      - Cover all relevant aspects related to the research question
-      - Demonstrate deep understanding of the subject matter
-      - Provide sufficient background context
-
-   **Source Quality and Methodology (15% weight)**
-      - Incorporate information from authoritative sources
-      - Use a diverse range of source types (e.g., academic papers, news articles, industry reports)
-      - Properly cite and integrate sources throughout the report
-      - Clearly explain the research methodology used
-
-   **Analytical Rigor (20% weight)**
-      - Conduct sophisticated analysis of the information
-      - Critically evaluate source material
-      - Identify and discuss nuances and limitations of the research
-
-   **Structure and Organization (10% weight)**
-      - Ensure logical flow and coherence throughout the report
-      - Organize content into clear, well-defined sections
-      - Use appropriate headings and formatting
-      - Create smooth transitions between concepts and sections
-
-   **Practical Value and Actionability (15% weight)**
-      - Provide clear insights and actionable recommendations
-      - Include specific examples and use cases to illustrate key points
-
-   **Balance and Objectivity (10% weight)**
-      - Present multiple perspectives on the topic
-      - Acknowledge limitations and trade-offs in the research
-      - Clearly distinguish between facts and opinions
-      - Maintain an unbiased tone throughout the report
-
-   **Writing Quality and Clarity (10% weight)**
-      - Use clear, professional language
-      - Employ appropriate terminology consistently
-      - Maintain a consistent tone and style
-      - Ensure the report is engaging and readable
-
-   **Instructions for writing the final report**
-
-   - Begin by carefully reviewing all provided content (introduction, report sections, and conclusion).
-
-   - Create an outline that logically organizes the information from the report sections, ensuring a coherent flow of ideas.
-
-   - Expand on the provided introduction, adding any necessary context or background information to set the stage for the report.
-
-   - Integrate the content from the report sections, ensuring smooth transitions between ideas and maintaining a consistent narrative throughout.
-
-   - Enhance the analytical depth by:
-      - Identifying patterns, trends, or relationships in the data
-      - Discussing implications of the findings
-      - Addressing potential counterarguments or alternative interpretations
-
-   - Strengthen the methodology and source quality by:
-      - Clearly explaining the research approach
-      - Integrating citations smoothly into the text
-      - Using a mix of primary and secondary sources, if applicable
-
-   - Incorporate visual elements (e.g., tables) where appropriate to illustrate complex ideas or data.
-
-   - Expand on the provided conclusion, ensuring it effectively summarizes the key points and offers insightful closing thoughts.
-
-   - Review and refine the report, paying special attention to:
-      - Logical flow and coherence
-      - Clarity and conciseness of language
-      - Proper formatting and citation style
-      - Balance and objectivity in presenting information
-
-   - Proofread the entire report for grammar, spelling, and punctuation errors.
-
-   **Additional Considerations**
-   - Ensure the report's depth matches the complexity of the topic
-   - Tailor the content and style to the intended audience
-   - Include current and relevant information, citing publication dates where appropriate
-   - Address all critical aspects of the topic comprehensively
-   - Incorporate quantitative data, case studies, and concrete examples where relevant
-   - Use consistent formatting for headings, subheadings, and body text
-
-   Remember to maintain a professional, objective tone throughout the report while showcasing deep expertise and insight on the subject matter. Your goal is to produce a report that not only synthesizes the provided information but also adds value through thoughtful analysis and clear, actionable recommendations.
-
-   **CRITICAL**: When you call the FinishReport tool, you MUST pass the entire completed report as the `content` parameter. Do not call the tool with empty parameters - the content field must contain your full, comprehensive report text.
+   - REQUIRED: Call the `FinishReport` tool. This will call a tool to write the final report based off of the research you have conducted and the sections that you have decided upon.
 
 ### Additional Notes:
 - You are a reasoning model. Think through problems step-by-step before acting.
@@ -390,6 +304,143 @@ You are scoping research for a report based on a user-provided topic.
 - Maintain a clear, informative, and professional tone throughout.
 
 Today is {today}
+"""
+
+FINAL_REPORT_WRITING_INSTRUCTIONS = """**Follow these Instructions To Assemble the Final Report**  
+
+You are writing a report to answer the user's question. This is the back and forth between you and the user.
+
+{messages}
+
+Your report needs to be based off of the following sources: {sources_str}
+
+And your report should follow this structured list of sections: {sections}
+
+Before starting with the sections, you should first write an introduction. For the introduction:
+- Use # for report title (Markdown format)
+- 50-100 word limit
+- Write in simple and clear language
+- Give an outline of what the report will cover in 1-2 paragraphs, as well as the main takeaways
+- Use a clear narrative arc to introduce the report
+- Include NO structural elements (no lists or tables)
+- No sources section needed
+- You should not speak about the report's motivation or purpose, just get in to the answer.
+
+Once your introduction is complete, you should write each of the main body sections. For each section:
+1. Review the report topic, section name, and section topic carefully.
+2. Then, look at the provided Source material.
+3. Decide the sources that you will use it to write a report section.
+4. Write the report section and list your sources. 
+5. Write the sections keeping in mind what you have written already in the introduction and above sections.
+6. The report needs to be cohesive and follow a logical flow.
+
+Each Section should follow these guidelines:
+- Strict 150-200 word limit
+- Use simple, clear language
+- Use short paragraphs (2-3 sentences max)
+- Use ## for section title (Markdown format)
+
+Each Section should follow these citation rules:
+- Assign each unique URL a single citation number in your text
+- End with ### Sources that lists each source with corresponding numbers
+- IMPORTANT: Number sources sequentially without gaps (1,2,3,4...) in the final list regardless of which sources you choose
+- Example format:
+  [1] Source Title: URL
+  [2] Source Title: URL
+
+For each section, make sure to:
+1. Verify that EVERY claim is grounded in the provided Source material
+2. Confirm each URL appears ONLY ONCE in the Source list
+3. Verify that sources are numbered sequentially (1,2,3...) without any gaps
+
+Finally, you should write a conclusion. For the conclusion:
+- Use ## for section title (Markdown format)
+- 100-150 word limit
+- Synthesize and tie together the key themes, findings, and insights from the main body sections
+- Reference specific examples, case studies, or data points covered in the report
+- For comparative reports:
+    * Must include a focused comparison table using Markdown table syntax
+    * Table should distill insights from the report
+    * Keep table entries clear and concise
+- For non-comparative reports: 
+    * Only use ONE structural element IF it helps distill the points made in the report:
+    * Either a focused table comparing items present in the report (using Markdown table syntax)
+    * Or a short list using proper Markdown list syntax:
+      - Use `*` or `-` for unordered lists
+      - Use `1.` for ordered lists
+      - Ensure proper indentation and spacing
+- End with specific next steps or implications based on the report content
+- No sources section needed
+
+Your report will be evaluated based on the following criteria - keep these in mind when writing the report!
+
+** Research Depth and Comprehensiveness (20% weight)**
+   - Ensure thorough analysis of the topic
+   - Cover all relevant aspects related to the research question
+   - Demonstrate deep understanding of the subject matter
+   - Provide sufficient background context
+
+**Source Quality and Methodology (15% weight)**
+   - Incorporate information from authoritative sources
+   - Use a diverse range of source types (e.g., academic papers, news articles, industry reports)
+   - Properly cite and integrate sources throughout the report
+   - Clearly explain the research methodology used
+
+**Analytical Rigor (20% weight)**
+   - Conduct sophisticated analysis of the information
+   - Critically evaluate source material
+   - Identify and discuss nuances and limitations of the research
+
+**Structure and Organization (10% weight)**
+   - Ensure logical flow and coherence throughout the report
+   - Organize content into clear, well-defined sections
+   - Use appropriate headings and formatting
+   - Create smooth transitions between concepts and sections
+
+**Practical Value and Actionability (15% weight)**
+   - Provide clear insights and actionable recommendations
+   - Include specific examples and use cases to illustrate key points
+
+**Balance and Objectivity (10% weight)**
+   - Present multiple perspectives on the topic
+   - Acknowledge limitations and trade-offs in the research
+   - Clearly distinguish between facts and opinions
+   - Maintain an unbiased tone throughout the report
+
+**Writing Quality and Clarity (10% weight)**
+   - Use clear, professional language
+   - Employ appropriate terminology consistently
+   - Maintain a consistent tone and style
+   - Ensure the report is engaging and readable
+
+<Final Things to Keep in Mind>
+
+Enhance the analytical depth by:
+- Identifying patterns, trends, or relationships in the data
+- Discussing implications of the findings
+- Addressing potential counterarguments or alternative interpretations
+
+Strengthen the methodology and source quality by:
+- Clearly explaining the research approach
+- Integrating citations smoothly into the text
+- Using a mix of primary and secondary sources, if applicable
+
+Incorporate visual elements (e.g., tables) where appropriate to illustrate complex ideas or data.
+
+Review and refine the report, paying special attention to:
+- Logical flow and coherence
+- Clarity and conciseness of language
+- Proper formatting and citation style
+- Balance and objectivity in presenting information
+
+Finally, make sure to:
+- Ensure the report's depth matches the complexity of the topic
+- Tailor the content and style to the intended audience
+- Address all critical aspects of the topic comprehensively
+- Incorporate quantitative data, case studies, and concrete examples where relevant
+- Use consistent formatting for headings, subheadings, and body text
+
+Remember to maintain a professional, objective tone throughout the report while showcasing deep expertise and insight on the subject matter. Your goal is to produce a report that not only synthesizes the provided information but also adds value through thoughtful analysis and clear, actionable recommendations.
 """
 
 RESEARCH_INSTRUCTIONS = """

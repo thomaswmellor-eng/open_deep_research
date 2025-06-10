@@ -17,10 +17,11 @@ evaluators = [eval_overall_quality, eval_relevance, eval_structure]
 # TODO: Configure these variables
 process_search_results = "summarize"
 include_source = False
-summarization_model = "claude-3-5-haiku-latest"
-summarization_model_provider = "anthropic"
-supervisor_model = "claude-3-5-sonnet-latest"
-researcher_model = "claude-3-5-sonnet-latest"
+summarization_model = "gpt-4.1"
+summarization_model_provider = "openai"
+supervisor_model = "openai:gpt-4.1"
+researcher_model = "openai:gpt-4.1"
+final_report_model = "openai:gpt-4.1"
 
 
 async def generate_report_multi_agent(
@@ -31,6 +32,7 @@ async def generate_report_multi_agent(
     summarization_model_provider: str = summarization_model_provider,
     supervisor_model: str = supervisor_model,
     researcher_model: str = researcher_model,
+    final_report_model: str = final_report_model,
 ):
     """Generate a report using the open deep research multi-agent architecture"""
     graph = supervisor_builder.compile()
@@ -43,6 +45,7 @@ async def generate_report_multi_agent(
     config["configurable"]["summarization_model_provider"] = summarization_model_provider
     config["configurable"]["supervisor_model"] = supervisor_model
     config["configurable"]["researcher_model"] = researcher_model
+    config["configurable"]["final_report_model"] = final_report_model
 
     final_state = await graph.ainvoke(
         # this is a hack

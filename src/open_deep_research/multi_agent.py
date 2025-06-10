@@ -4,7 +4,7 @@ import operator
 import warnings
 
 from langchain.chat_models import init_chat_model
-from langchain_core.messages import ToolMessage
+from langchain_core.messages import ToolMessage, filter_messages
 from langchain_core.tools import tool, BaseTool
 from langchain_core.runnables import RunnableConfig
 from langchain_mcp_adapters.client import MultiServerMCPClient
@@ -22,7 +22,7 @@ from open_deep_research.utils import (
 )
 from langchain_core.messages import BaseMessage
 
-from open_deep_research.prompts import SUPERVISOR_INSTRUCTIONS, RESEARCH_INSTRUCTIONS
+from open_deep_research.prompts import SUPERVISOR_INSTRUCTIONS, RESEARCH_INSTRUCTIONS, FINAL_REPORT_WRITING_INSTRUCTIONS
 
 def extract_research_content(messages: List[BaseMessage]) -> str:
     """Extract all tool call content from research agent messages."""
@@ -96,10 +96,7 @@ class FinishResearch(BaseModel):
 
 # No-op tool to indicate that the report writing is complete
 class FinishReport(BaseModel):
-    """Finish the report. When calling this tool, you must provide the complete report content as the 'content' argument."""
-    content: str = Field(
-        description="The complete content of the final report that should be returned to the user."
-    )
+    """Finish the report."""
 
 ## State
 class ReportStateOutput(MessagesState):
@@ -230,7 +227,7 @@ async def supervisor(state: ReportState, config: RunnableConfig):
         ]
     }
 
-async def supervisor_tools(state: ReportState, config: RunnableConfig)  -> Command[Literal["supervisor", "research_team", "__end__"]]:
+async def supervisor_tools(state: ReportState, config: RunnableConfig)  -> Command[Literal["supervisor", "research_team", "finish_report"]]:
     """Performs the tool call and sends to the research agent"""
     
     result = []
@@ -265,14 +262,13 @@ async def supervisor_tools(state: ReportState, config: RunnableConfig)  -> Comma
         elif tool_call["name"] == "Sections":
             sections_list = cast(Sections, observation).sections
         elif tool_call["name"] == "FinishReport":
-            final_report = cast(FinishReport, observation).content
-            return Command(goto=END, update={"final_report": final_report})
+            return Command(goto="finish_report")
 
 
     # After processing all tool calls, decide what to do next
     if sections_list:
         # Send the sections to the research agents
-        return Command(goto=[Send("research_team", {"section": s}) for s in sections_list], update={"messages": result})
+        return Command(goto=[Send("research_team", {"section": s}) for s in sections_list], update={"messages": result, "sections": sections_list})
     
     else:
         # Default case (for search tools, etc.)
@@ -280,12 +276,27 @@ async def supervisor_tools(state: ReportState, config: RunnableConfig)  -> Comma
 
     return Command(goto="supervisor", update=state_update)
 
+async def finish_report(state: ReportState, config: RunnableConfig) -> str:
+    """Extract the final report from the messages"""
+    configurable = MultiAgentConfiguration.from_runnable_config(config)
+    model = get_config_value(configurable.final_report_model)
+    llm = init_chat_model(model=model)
+    final_report = await llm.ainvoke(FINAL_REPORT_WRITING_INSTRUCTIONS.format(
+        sources_str="\n\n".join(state["source_str"]), 
+        sections="\n\n".join(state["sections"]),
+        messages="\n\n".join([
+            m.pretty_repr()
+            for m in filter_messages(state["messages"], exclude_tool_calls=True) 
+        ])
+    ))
+    return {"final_report": final_report.content}
+
 async def supervisor_should_continue(state: ReportState) -> str:
     """Decide if we should continue the loop or stop based upon whether the LLM made a tool call"""
 
     messages = state["messages"]
     last_message = messages[-1]
-    # End because the supervisor asked a question or is finished
+    # End because the supervisor asked a question or FinishReport was called 
     if not last_message.tool_calls or (isinstance(last_message, ToolMessage) and last_message.name == "FinishReport"):
         # Exit the graph
         return END
@@ -402,6 +413,7 @@ supervisor_builder = StateGraph(ReportState, input=MessagesState, output=ReportS
 supervisor_builder.add_node("supervisor", supervisor)
 supervisor_builder.add_node("supervisor_tools", supervisor_tools)
 supervisor_builder.add_node("research_team", research_builder.compile())
+supervisor_builder.add_node("finish_report", finish_report)
 
 # Flow of the supervisor agent
 supervisor_builder.add_edge(START, "supervisor")
@@ -411,5 +423,6 @@ supervisor_builder.add_conditional_edges(
     ["supervisor_tools", END]
 )
 supervisor_builder.add_edge("research_team", "supervisor")
+supervisor_builder.add_edge("finish_report", END)
 
 graph = supervisor_builder.compile()
