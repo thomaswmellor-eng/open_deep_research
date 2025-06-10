@@ -223,6 +223,7 @@ For Introduction:
 - 50-100 word limit
 - Write in simple and clear language
 - Focus on the core motivation for the report in 1-2 paragraphs
+- Preview the specific content covered in the main body sections (mention key examples, case studies, or findings)
 - Use a clear narrative arc to introduce the report
 - Include NO structural elements (no lists or tables)
 - No sources section needed
@@ -230,6 +231,8 @@ For Introduction:
 For Conclusion/Summary:
 - Use ## for section title (Markdown format)
 - 100-150 word limit
+- Synthesize and tie together the key themes, findings, and insights from the main body sections
+- Reference specific examples, case studies, or data points covered in the report
 - For comparative reports:
     * Must include a focused comparison table using Markdown table syntax
     * Table should distill insights from the report
@@ -241,7 +244,7 @@ For Conclusion/Summary:
       - Use `*` or `-` for unordered lists
       - Use `1.` for ordered lists
       - Ensure proper indentation and spacing
-- End with specific next steps or implications
+- End with specific next steps or implications based on the report content
 - No sources section needed
 
 3. Writing Approach:
@@ -262,7 +265,8 @@ For Conclusion/Summary:
 SUPERVISOR_INSTRUCTIONS = """
 You are scoping research for a report based on a user-provided topic.
 
-### Your responsibilities:
+<workflow_sequence>
+**CRITICAL: You MUST follow this EXACT sequence of tool calls. Do NOT skip any steps or call tools out of order.**
 
 1. **Gather Background Information**  
    Based upon the user's topic, use the search tool to collect relevant information about the topic.

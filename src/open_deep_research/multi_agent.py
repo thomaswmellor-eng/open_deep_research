@@ -13,13 +13,12 @@ from langgraph.graph import MessagesState
 from langgraph.types import Command, Send
 from langgraph.graph import START, END, StateGraph
 
-from open_deep_research.configuration import Configuration
+from open_deep_research.configuration import MultiAgentConfiguration
 from open_deep_research.utils import (
     get_config_value,
     tavily_search,
     duckduckgo_search,
     get_today_str,
-    load_mcp_server_config
 )
 
 from open_deep_research.prompts import SUPERVISOR_INSTRUCTIONS, RESEARCH_INSTRUCTIONS
@@ -27,7 +26,7 @@ from open_deep_research.prompts import SUPERVISOR_INSTRUCTIONS, RESEARCH_INSTRUC
 ## Tools factory - will be initialized based on configuration
 def get_search_tool(config: RunnableConfig):
     """Get the appropriate search tool based on configuration"""
-    configurable = Configuration.from_runnable_config(config)
+    configurable = MultiAgentConfiguration.from_runnable_config(config)
     search_api = get_config_value(configurable.search_api)
 
     # Return None if no search tool is requested
@@ -86,7 +85,7 @@ class FinishReport(BaseModel):
     )
 
 ## State
-class ReportStateOutput(TypedDict):
+class ReportStateOutput(MessagesState):
     final_report: str # Final report
     # for evaluation purposes only
     # this is included only if configurable.include_source_str is True
@@ -96,7 +95,6 @@ class ReportState(MessagesState):
     sections: list[str] # List of report sections 
     completed_sections: Annotated[list[Section], operator.add] # Send() API key
     final_report: str # Final report
-    question_asked: bool # Track if a clarifying question has been asked
     # for evaluation purposes only
     # this is included only if configurable.include_source_str is True
     source_str: Annotated[str, operator.add] # String of formatted source content from web search
@@ -119,7 +117,7 @@ async def _load_mcp_tools(
     config: RunnableConfig,
     existing_tool_names: set[str],
 ) -> list[BaseTool]:
-    configurable = Configuration.from_runnable_config(config)
+    configurable = MultiAgentConfiguration.from_runnable_config(config)
     if not configurable.mcp_server_config:
         return []
 
@@ -146,15 +144,18 @@ async def _load_mcp_tools(
 
 
 # Tool lists will be built dynamically based on configuration
-def get_supervisor_tools(config: RunnableConfig) -> list[BaseTool]:
+async def get_supervisor_tools(config: RunnableConfig) -> list[BaseTool]:
     """Get supervisor tools based on configuration"""
-    configurable = Configuration.from_runnable_config(config)
+    configurable = MultiAgentConfiguration.from_runnable_config(config)
     search_tool = get_search_tool(config)
     tools = [tool(Sections), tool(FinishReport)]
     if configurable.ask_for_clarification:
         tools.append(tool(Question))
     if search_tool is not None:
         tools.append(search_tool)  # Add search tool, if available
+    existing_tool_names = {cast(BaseTool, tool).name for tool in tools}
+    mcp_tools = await _load_mcp_tools(config, existing_tool_names)
+    tools.extend(mcp_tools)
     return tools
 
 
@@ -177,9 +178,9 @@ async def supervisor(state: ReportState, config: RunnableConfig):
     messages = state["messages"]
 
     # Get configuration
-    configurable = Configuration.from_runnable_config(config)
+    configurable = MultiAgentConfiguration.from_runnable_config(config)
     supervisor_model = get_config_value(configurable.supervisor_model)
-    
+
     # Initialize the model
     llm = init_chat_model(model=supervisor_model)
     
@@ -189,11 +190,8 @@ async def supervisor(state: ReportState, config: RunnableConfig):
         messages = messages + [research_complete_message]
 
     # Get tools based on configuration
-    supervisor_tool_list = get_supervisor_tools(config)
+    supervisor_tool_list = await get_supervisor_tools(config)
     
-    # Remove Question tool if a question has already been asked
-    if state.get("question_asked", False):
-        supervisor_tool_list = [tool for tool in supervisor_tool_list if tool.name != "Question"]
     
     llm_with_tools = (
         llm
@@ -204,6 +202,12 @@ async def supervisor(state: ReportState, config: RunnableConfig):
             tool_choice="any"
         )
     )
+
+    # Get system prompt
+    system_prompt = SUPERVISOR_INSTRUCTIONS.format(today=get_today_str())
+    if configurable.mcp_prompt:
+        system_prompt += f"\n\n{configurable.mcp_prompt}"
+
     # Invoke
     return {
         "messages": [
@@ -211,7 +215,7 @@ async def supervisor(state: ReportState, config: RunnableConfig):
                 [
                     {
                         "role": "system",
-                        "content": SUPERVISOR_INSTRUCTIONS.format(today=get_today_str())
+                        "content": system_prompt
                     }
                 ]
                 + messages
@@ -221,7 +225,7 @@ async def supervisor(state: ReportState, config: RunnableConfig):
 
 async def supervisor_tools(state: ReportState, config: RunnableConfig)  -> Command[Literal["supervisor", "research_team", "__end__"]]:
     """Performs the tool call and sends to the research agent"""
-    configurable = Configuration.from_runnable_config(config)
+    configurable = MultiAgentConfiguration.from_runnable_config(config)
 
     result = []
     sections_list = []
@@ -230,7 +234,7 @@ async def supervisor_tools(state: ReportState, config: RunnableConfig)  -> Comma
     source_str = ""
 
     # Get tools based on configuration
-    supervisor_tool_list = get_supervisor_tools(config)
+    supervisor_tool_list = await get_supervisor_tools(config)
     supervisor_tools_by_name = {tool.name: tool for tool in supervisor_tool_list}
     search_tool_names = {
         tool.name
@@ -259,9 +263,7 @@ async def supervisor_tools(state: ReportState, config: RunnableConfig)  -> Comma
             # Question tool was called - return to supervisor to ask the question
             question_obj = cast(Question, observation)
             result.append({"role": "assistant", "content": question_obj.question})
-            return Command(goto=END, update={"messages": result, "question_asked": True})
-        elif tool_call["name"] == "Sections":
-            sections_list = cast(Sections, observation).sections
+            return Command(goto=END, update={"messages": result})
         elif tool_call["name"] == "FinishReport":
             final_report = cast(FinishReport, observation).content
             return Command(goto=END, update={"final_report": final_report})
@@ -275,6 +277,7 @@ async def supervisor_tools(state: ReportState, config: RunnableConfig)  -> Comma
     if sections_list:
         # Send the sections to the research agents
         return Command(goto=[Send("research_team", {"section": s}) for s in sections_list], update={"messages": result})
+    
     else:
         # Default case (for search tools, etc.)
         state_update = {"messages": result}
@@ -298,7 +301,7 @@ async def research_agent(state: SectionState, config: RunnableConfig):
     """LLM decides whether to call a tool or not"""
     
     # Get configuration
-    configurable = Configuration.from_runnable_config(config)
+    configurable = MultiAgentConfiguration.from_runnable_config(config)
     researcher_model = get_config_value(configurable.researcher_model)
     
     # Initialize the model
@@ -314,6 +317,11 @@ async def research_agent(state: SectionState, config: RunnableConfig):
     if configurable.mcp_prompt:
         system_prompt += f"\n\n{configurable.mcp_prompt}"
 
+    # Ensure we have at least one user message (required by Anthropic)
+    messages = state.get("messages", [])
+    if not messages:
+        messages = [{"role": "user", "content": f"Please research and write the section: {state['section']}"}]
+
     return {
         "messages": [
             # Enforce tool calling to either perform more search or call the Section tool to write the section
@@ -327,14 +335,14 @@ async def research_agent(state: SectionState, config: RunnableConfig):
                         "content": system_prompt
                     }
                 ]
-                + state["messages"]
+                + messages
             )
         ]
     }
 
 async def research_agent_tools(state: SectionState, config: RunnableConfig):
     """Performs the tool call and route to supervisor or continue the research loop"""
-    configurable = Configuration.from_runnable_config(config)
+    configurable = MultiAgentConfiguration.from_runnable_config(config)
 
     result = []
     source_str = ""
@@ -363,6 +371,7 @@ async def research_agent_tools(state: SectionState, config: RunnableConfig):
                        "content": observation, 
                        "name": tool_call["name"], 
                        "tool_call_id": tool_call["id"]})
+        
 
         # Store the source string if a search tool was called
         if tool_call["name"] in search_tool_names and configurable.include_source_str:
@@ -390,7 +399,7 @@ async def research_agent_should_continue(state: SectionState) -> str:
 """Build the multi-agent workflow"""
 
 # Research agent workflow
-research_builder = StateGraph(SectionState, output=SectionOutputState, config_schema=Configuration)
+research_builder = StateGraph(SectionState, output=SectionOutputState, config_schema=MultiAgentConfiguration)
 research_builder.add_node("research_agent", research_agent)
 research_builder.add_node("research_agent_tools", research_agent_tools)
 research_builder.add_edge(START, "research_agent") 
@@ -402,7 +411,7 @@ research_builder.add_conditional_edges(
 research_builder.add_edge("research_agent_tools", "research_agent")
 
 # Supervisor workflow
-supervisor_builder = StateGraph(ReportState, input=MessagesState, output=ReportStateOutput, config_schema=Configuration)
+supervisor_builder = StateGraph(ReportState, input=MessagesState, output=ReportStateOutput, config_schema=MultiAgentConfiguration)
 supervisor_builder.add_node("supervisor", supervisor)
 supervisor_builder.add_node("supervisor_tools", supervisor_tools)
 supervisor_builder.add_node("research_team", research_builder.compile())
