@@ -10,8 +10,6 @@ from open_deep_research.multi_agent import supervisor_builder
 
 load_dotenv("../.env")
 
-print(os.getenv("LANGSMITH_API_KEY"))
-
 client = Client()
 
 dataset_name = "ODR: Multi Agent Examples"

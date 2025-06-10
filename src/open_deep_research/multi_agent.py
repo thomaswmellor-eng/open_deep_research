@@ -20,17 +20,18 @@ from open_deep_research.utils import (
     duckduckgo_search,
     get_today_str,
 )
+from langchain_core.messages import BaseMessage
 
 from open_deep_research.prompts import SUPERVISOR_INSTRUCTIONS, RESEARCH_INSTRUCTIONS
 
-def extract_research_content(messages: List[dict]) -> str:
+def extract_research_content(messages: List[BaseMessage]) -> str:
     """Extract all tool call content from research agent messages."""
     research_content = []
     for message in messages:
-        if isinstance(message, dict) and message.get("role") == "tool":
+        if isinstance(message, ToolMessage):
             # Extract tool call results (search results, MCP results, etc.)
-            content = message.get("content", "")
-            tool_name = message.get("name", "")
+            content = message.content
+            tool_name = message.tool_call_id
             if tool_name != "FinishResearch" and content.strip():  # Exclude FinishResearch and empty content
                 research_content.append(f"=== {tool_name} Results ===\n{content}\n")
     
@@ -95,9 +96,9 @@ class FinishResearch(BaseModel):
 
 # No-op tool to indicate that the report writing is complete
 class FinishReport(BaseModel):
-    """Finish the report."""
+    """Finish the report. When calling this tool, you must provide the complete report content as the 'content' argument."""
     content: str = Field(
-        description="Content of the final report."
+        description="The complete content of the final report that should be returned to the user."
     )
 
 ## State
@@ -361,25 +362,12 @@ async def research_agent_tools(state: SectionState, config: RunnableConfig):
                        "tool_call_id": tool_call["id"]})
     
     # After processing all tools, decide what to do next
-    state_update = {"messages": result, "source_str": []}
-    
-    # Check if FinishResearch was called
-    finish_research_called = any(
-        tool_call["name"] == "FinishResearch" 
-        for tool_call in state["messages"][-1].tool_calls
-    )
+    return {"messages": result}
 
-    # If FinishResearch was called, extract ALL research content from this agent's conversation
-    if finish_research_called:
-        # Extract all research content from the complete message history (including current results)
-        all_research = extract_research_content(state["messages"] + result)
-        print("--------------------------------")
-        print("FinishResearch was called")
-        print(f"All research content: {all_research}")
-        print("--------------------------------")
-        state_update["source_str"] = [all_research]
+async def finish_research(state: SectionState, config: RunnableConfig):
+    # Extract all research content from the complete message history (including current results)
+    return {"source_str": [extract_research_content(state["messages"])]}
 
-    return state_update
 
 async def research_agent_should_continue(state: SectionState) -> str:
     """Decide if we should continue the loop or stop based upon whether the LLM made a tool call"""
@@ -389,7 +377,7 @@ async def research_agent_should_continue(state: SectionState) -> str:
 
     if last_message.tool_calls[0]["name"] == "FinishResearch":
         # Research is done - return to supervisor
-        return END
+        return "finish_research"
     else:
         return "research_agent_tools"
     
@@ -399,13 +387,15 @@ async def research_agent_should_continue(state: SectionState) -> str:
 research_builder = StateGraph(SectionState, output=SectionOutputState, config_schema=MultiAgentConfiguration)
 research_builder.add_node("research_agent", research_agent)
 research_builder.add_node("research_agent_tools", research_agent_tools)
+research_builder.add_node("finish_research", finish_research)
 research_builder.add_edge(START, "research_agent") 
 research_builder.add_conditional_edges(
     "research_agent",
     research_agent_should_continue,
-    ["research_agent_tools", END]
+    ["research_agent_tools", "finish_research"]
 )
 research_builder.add_edge("research_agent_tools", "research_agent")
+research_builder.add_edge("finish_research", END)
 
 # Supervisor workflow
 supervisor_builder = StateGraph(ReportState, input=MessagesState, output=ReportStateOutput, config_schema=MultiAgentConfiguration)

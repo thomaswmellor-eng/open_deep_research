@@ -286,7 +286,7 @@ You are scoping research for a report based on a user-provided topic.
    - Do not proceed to defining sections until you have asked this clarifying question and received the user's response
 
 3. **Define Report Structure**  
-   Only after completing both research AND clarification with the user:
+   Only after completing both initial research AND clarification with the user:
    - You MUST use the `Sections` tool to define a list of report sections
    - Each section should be a written description with: a section name and a section research plan
    - Do not include sections for introductions or conclusions (We'll add these later)
@@ -341,7 +341,7 @@ You are scoping research for a report based on a user-provided topic.
 
    **Instructions for writing the final report**
 
-   -  Begin by carefully reviewing all provided content (introduction, report sections, and conclusion).
+   - Begin by carefully reviewing all provided content (introduction, report sections, and conclusion).
 
    - Create an outline that logically organizes the information from the report sections, ensuring a coherent flow of ideas.
 
