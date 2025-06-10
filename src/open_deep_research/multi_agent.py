@@ -104,26 +104,19 @@ class FinishReport(BaseModel):
 class ReportStateOutput(MessagesState):
     final_report: str # Final report
     # for evaluation purposes only
-    source_str: str # String of formatted source content from web search
+    source_str: list[str] # String of formatted source content from web search
 
 class ReportState(MessagesState):
     sections: list[str] # List of report sections 
-    completed_sections: Annotated[list[Section], operator.add] # Send() API key
     final_report: str # Final report
-    # for evaluation purposes only
-    source_str: Annotated[str, operator.add] # String of formatted source content from web search
+    source_str: Annotated[list[str], operator.add] # String of formatted source content from web search
 
 class SectionState(MessagesState):
     section: str # Report section  
-    completed_sections: list[Section] # Final key we duplicate in outer state for Send() API
-    # for evaluation purposes only
-    source_str: list[str] # String of formatted source content from web search
+    source_str: list[str] # Final key we duplicate in outer state for Send() API
 
 class SectionOutputState(TypedDict):
-    completed_sections: list[Section] # Final key we duplicate in outer state for Send() API
-    # for evaluation purposes only
-    source_str: list[str] # String of formatted source content from web search
-
+    source_str: list[str] # Final key we duplicate in outer state for Send() API
 
 async def _load_mcp_tools(
     config: RunnableConfig,
@@ -198,7 +191,9 @@ async def supervisor(state: ReportState, config: RunnableConfig):
     
     # If research has been completed, but we don't yet have the final report, then we need to initiate writing the final report
     if state.get("source_str") and not state.get("final_report"):
-        research_complete_message = {"role": "user", "content": f"Research is now complete. Now write a final report based using the following research results: {state['source_str']}."}
+        # Join all research results from all agents into a single string
+        all_research = "\n\n".join(state["source_str"]) if isinstance(state["source_str"], list) else state["source_str"]
+        research_complete_message = {"role": "user", "content": f"Research is now complete. Now write a final report based using the following research results: {all_research}."}
         messages = messages + [research_complete_message]
 
     # Get tools based on configuration
@@ -236,8 +231,7 @@ async def supervisor(state: ReportState, config: RunnableConfig):
 
 async def supervisor_tools(state: ReportState, config: RunnableConfig)  -> Command[Literal["supervisor", "research_team", "__end__"]]:
     """Performs the tool call and sends to the research agent"""
-    configurable = MultiAgentConfiguration.from_runnable_config(config)
-
+    
     result = []
     sections_list = []
 
@@ -343,20 +337,13 @@ async def research_agent(state: SectionState, config: RunnableConfig):
 
 async def research_agent_tools(state: SectionState, config: RunnableConfig):
     """Performs the tool call and route to supervisor or continue the research loop"""
-    configurable = MultiAgentConfiguration.from_runnable_config(config)
-
+    
     result = []
     
     # Get tools based on configuration
     research_tool_list = await get_research_tools(config)
     research_tools_by_name = {tool.name: tool for tool in research_tool_list}
-    
-    # Check if FinishResearch was called
-    finish_research_called = any(
-        tool_call["name"] == "FinishResearch" 
-        for tool_call in state["messages"][-1].tool_calls
-    )
-    
+        
     # Process all tool calls first (required for OpenAI)
     for tool_call in state["messages"][-1].tool_calls:
         # Get the tool
@@ -376,10 +363,20 @@ async def research_agent_tools(state: SectionState, config: RunnableConfig):
     # After processing all tools, decide what to do next
     state_update = {"messages": result, "source_str": []}
     
+    # Check if FinishResearch was called
+    finish_research_called = any(
+        tool_call["name"] == "FinishResearch" 
+        for tool_call in state["messages"][-1].tool_calls
+    )
+
     # If FinishResearch was called, extract ALL research content from this agent's conversation
     if finish_research_called:
         # Extract all research content from the complete message history (including current results)
         all_research = extract_research_content(state["messages"] + result)
+        print("--------------------------------")
+        print("FinishResearch was called")
+        print(f"All research content: {all_research}")
+        print("--------------------------------")
         state_update["source_str"] = [all_research]
 
     return state_update
