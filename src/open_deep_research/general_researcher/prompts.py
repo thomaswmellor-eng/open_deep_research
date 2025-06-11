@@ -1,90 +1,91 @@
-clarify_with_user_instructions="""
-These are the messages that have been exchanged so far from the user asking for the report:
+query_writer_instructions="""You are performing deep research to comprehensively answer a question that a user asked. These are the messages that have been exchanged so far between yourself and the user:
 <Messages>
 {messages}
 </Messages>
-
-Return ONE targeted question to clarify report scope.
-If there are acronyms, abbreviations, or unknown terms, ask the user to clarify.
-Focus on: technical depth, target audience, specific aspects to emphasize
-Examples: "Should I focus on technical implementation details or high-level business benefits?" 
-"""
-
-report_planner_query_writer_instructions="""You are performing research for a report. 
-
-These are the messages that have been exchanged so far from the user asking for the report:
-<Messages>
-{messages}
-</Messages>
-
-The report should follow this organization: 
-<Report organization>
-{report_organization}
-</Report organization>
 
 <Task>
-Your goal is to generate {number_of_queries} web search queries that will help gather information for planning the report sections. 
+Your goal is to generate {number_of_queries} web search queries that will help gather information for answering the user's questions comprehensively.
 
-The queries should:
-
-1. Be related to the topic in the messages from the user
-2. Help satisfy the requirements specified in the report organization
-
-Make the queries specific enough to find high-quality, relevant sources while covering the breadth needed for the report structure.
-If there are any acronyms, abbreviations, or unknown terms and you don't have clarification from the user, select a SINGLE definition of the term and use those fully spelled out in the query to avoid ambiguity.
+The queries should be related to the topic in the messages from the user. They can also be used to find specific pieces of information that will help answer the question.
+Make the queries specific enough to find high-quality, relevant sources while covering the breadth needed for a very, very detailed and comprehensive answer.
+If there are any acronyms, abbreviations, or unknown terms, select a SINGLE definition of the term and fully spell it out in the queries to avoid ambiguity.
+If you are totally sure that you have all of the information that you would need to answer the question, return an empty list of queries.
 </Task>
 
-<Format>
-Call the Queries tool 
-</Format>
+Here is a list of all of the queries that have been sent to the search engine so far already: 
+<Previous queries>
+{query_history}
+</Previous queries>
 
-Today is {today}
+This is all of the information that you have already gathered from those above search queries:
+<Information gathered already>
+{context}
+</Information gathered already>
+
+Think critically about what information is still missing to answer the user's question.
+Generate a helpful list of new queries to send to get missing information! Today is {today}
 """
 
-report_planner_instructions="""I want a plan for a report that is concise and focused.
+response_structure_instructions="""You are performing deep research to comprehensively answer a question that a user asked.
 
-These are the messages that have been exchanged so far from the user asking for the report:
+These are the messages that have been exchanged so far between yourself and the user:
 <Messages>
 {messages}
 </Messages>
 
-The report should follow this organization: 
-<Report organization>
-{report_organization}
-</Report organization>
-
-Here is context to use to plan the sections of the report: 
-<Context>
+We have already gathered a lot of information from web searches about the topic. Here is a all of the information that we've gathered so far:
+<Information gathered already>
 {context}
-</Context>
+</Information gathered already>
+
 
 <Task>
-Generate a list of sections for the report. Your plan should be tight and focused with NO overlapping sections or unnecessary filler. 
+Generate a list of sections for the answer to provide to the user. Your plan should be tight and focused with NO overlapping sections or unnecessary filler. 
 
-If there are any acronyms, abbreviations, or unknown terms and you don't have clarification from the user, select a SINGLE definition of the term and use those fully spelled out in the section names and descriptions to avoid ambiguity.
+The structure of your sections will really depend on the question that the user asked. 
+This structure is important because you will be writing each section independently, so they should not have any dependence on each other.
 
-For example, a good report structure might look like:
+You can structure your sections in a number of different ways. Here are some examples:
+
+To answer a question that asks you to compare two things, you might structure your sections like this:
 1/ intro
 2/ overview of topic A
 3/ overview of topic B
 4/ comparison between A and B
 5/ conclusion
 
+To answer a question that asks you to return a list of things, you might only need a single section which is the entire list.
+1/ list of things
+
+Or, you could choose to make each item in the list a separate section. When asked for lists, you don't need an introduction or conclusion.
+1/ item 1
+2/ item 2
+3/ item 3
+
+To answer a question that asks you to summarize a topic, give a report, or give an overview, you might structure your sections like this:
+1/ overview of topic
+2/ concept 1
+3/ concept 2
+4/ concept 3
+5/ conclusion
+
+If you think you can answer the question with a single section, you can do that too!
+1/ answer
+
+REMEMBER: Section is a VERY fluid and loose concept. You can structure your sections however you think is best, including in ways that are not listed above!
+
 Each section should have the fields:
 
 - Name - Name for this section of the report.
-- Description - Brief overview of the main topics covered in this section.
-- Research - Whether to perform web research for this section of the report. IMPORTANT: Main body sections (not intro/conclusion) MUST have Research=True. A report must have AT LEAST 2-3 sections with Research=True to be useful.
-- Content - The content of the section, which you will leave blank for now.
+- Description - A specific overview of what the section will be about. Do not be vague or general.
 
 Integration guidelines:
-- Include examples and implementation details within main topic sections, not as separate sections
 - Ensure each section has a distinct purpose with no content overlap
 - Combine related concepts rather than separating them
 - CRITICAL: Every section MUST be directly relevant to the main topic
 - Avoid tangential or loosely related sections that don't directly address the core topic
 
-Before submitting, review your structure to ensure it has no redundant sections and follows a logical flow.
+Before submitting, review your structure to ensure it has no redundant sections and follows a logical flow that answers the user's question in the best way possible.
 </Task>
 
 <Feedback>
@@ -92,38 +93,10 @@ Here is feedback on the report structure from review (if any):
 {feedback}
 </Feedback>
 
+Return your outline in the following format as a list of sections!
 <Format>
-Call the Sections tool 
+Call the Outline tool 
 </Format>
-"""
-
-query_writer_instructions="""You are an expert technical writer crafting targeted web search queries that will gather comprehensive information for writing a technical report section.
-
-These are the messages that have been exchanged so far from the user asking for the report:
-<Messages>
-{messages}
-</Messages>
-
-<Section topic>
-{section_topic}
-</Section topic>
-
-<Task>
-Your goal is to generate {number_of_queries} search queries that will help gather comprehensive information above the section topic. 
-
-The queries should:
-
-1. Be related to the topic 
-2. Examine different aspects of the topic
-
-Make the queries specific enough to find high-quality, relevant sources.
-</Task>
-
-<Format>
-Call the Queries tool 
-</Format>
-
-Today is {today}
 """
 
 section_writer_instructions = """Write one section of a research report.

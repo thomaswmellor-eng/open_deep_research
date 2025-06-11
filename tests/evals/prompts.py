@@ -2,44 +2,40 @@ OVERALL_QUALITY_PROMPT = """You are an expert evaluator tasked with assessing th
 
 Evaluation Criteria:
 
-1. Research Depth and Comprehensiveness (Weight: 20%)
+1. Research Depth and Comprehensiveness
    - Thoroughness of analysis
    - Coverage of aspects relevant to the user's input
    - Depth of understanding
    - Background context provided
 
-2. Source Quality and Methodology (Weight: 15%)
+2. Source Quality and Methodology
    - Use of authoritative sources (webpages)
    - Diversity of source webpage types (e.g. news articles, papers, etc.)
    - Citation quality and integration
    - Transparency of research methodology
 
-3. Analytical Rigor (Weight: 20%)
+3. Analytical Rigor
    - Sophistication of analysis
    - Critical evaluation of the source information
    - Identification of nuances and limitations
 
-4. Structure and Organization (Weight: 10%)
-   - Logical flow and coherence
-   - Clear section organization
-   - Appropriate use of headings and formatting
-   - Smooth transitions between concepts
-
-5. Practical Value and Actionability (Weight: 15%)
+4. Practical Value and Actionability
    - Clarity of insights and recommendations
    - Specific examples and use cases
+   - Does not refer to itself as the writer of the report at any point
 
-6. Balance and Objectivity (Weight: 10%)
+5. Balance and Objectivity
    - Presentation of multiple perspectives
    - Acknowledgment of limitations and trade-offs
    - Distinction between facts and opinions
    - Avoidance of bias
 
-7. Writing Quality and Clarity (Weight: 10%)
+6. Writing Quality and Clarity
    - Clarity and professionalism of writing
    - Appropriate use of terminology
    - Consistency of tone and style
    - Engagement and readability
+   - Does not refer to itself as the writer of the report at any point
 
 Scoring Instructions:
 1. Evaluate each dimension on a scale of 1-5, where:
@@ -48,12 +44,6 @@ Scoring Instructions:
    3 = Good
    4 = Very Good
    5 = Excellent
-
-2. Provide a brief justification for each score, citing specific examples from the report.
-
-3. Calculate the weighted overall score using the specified weights. Round to the nearest integer.
-
-4. Offer recommendations for improvement where scores are low.
 
 Evaluation Process:
 1. Begin by analyzing each dimension separately. Wrap your analysis for each dimension in <dimension_analysis> tags. For each dimension:
@@ -84,31 +74,14 @@ Dimension Scores:
 3. Analytical Rigor: [Score]/5
    Justification: [Brief explanation with examples]
 
-4. Structure and Organization: [Score]/5
+4. Practical Value and Actionability: [Score]/5
    Justification: [Brief explanation with examples]
 
-5. Practical Value and Actionability: [Score]/5
+5. Balance and Objectivity: [Score]/5
    Justification: [Brief explanation with examples]
 
-6. Balance and Objectivity: [Score]/5
+6. Writing Quality and Clarity: [Score]/5
    Justification: [Brief explanation with examples]
-
-7. Writing Quality and Clarity: [Score]/5
-   Justification: [Brief explanation with examples]
-
-Overall Weighted Score: [Calculated Score]/5
-
-Key Strengths:
-- [Strength 1]
-- [Strength 2]
-- [Strength 3]
-(List 3-5 main strengths with examples)
-
-Areas for Improvement:
-- [Area 1]: [Specific suggestion]
-- [Area 2]: [Specific suggestion]
-- [Area 3]: [Specific suggestion]
-(List 3-5 areas needing improvement with specific suggestions)
 
 Overall Assessment:
 [2-3 paragraph summary of the report's quality, utility, and fitness for purpose]
@@ -118,9 +91,9 @@ Today is {today}
 Now, please evaluate the research report.
 """
 
-RELEVANCE_PROMPT = """You are evaluating the relevance of a research report to the user's input topic. Please assess the report against the following criteria, being especially strict about section relevance.
+RELEVANCE_PROMPT = """You are evaluating the relevance of a research report to the user's input questions. Please assess the report against the following criteria, being especially strict about section relevance.
 
-1. Topic Relevance (Overall): Does the report directly address the user's input topic thoroughly?
+1. Topic Relevance (Overall): Does the report directly address the user's input questions thoroughly?
 
 2. Section Relevance (Critical): CAREFULLY assess each individual section for relevance to the main topic:
    - Identify each section by its ## header
