@@ -37,6 +37,7 @@ dependencies = [
     "rich>=13.0.0",
     "langgraph-cli[inmem]>=0.3.1",
     "langsmith>=0.3.37",
+    "anthropic>=0.54.0",
 ]
 
 [project.optional-dependencies]

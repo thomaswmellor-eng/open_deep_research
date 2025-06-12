@@ -80,6 +80,7 @@ async def generate_report_plan(state: ReportState, config: RunnableConfig) -> Co
 
     writer_provider = get_config_value(configurable.writer_provider)
     writer_model_name = get_config_value(configurable.writer_model)
+    report_planner_instructions = configurable.report_planner_instructions
     writer_model_kwargs = get_config_value(configurable.writer_model_kwargs or {})
     writer_model = init_chat_model(model=writer_model_name, model_provider=writer_provider, model_kwargs=writer_model_kwargs) 
     structured_llm = writer_model.with_structured_output(Queries)
@@ -121,7 +122,7 @@ async def generate_report_plan(state: ReportState, config: RunnableConfig) -> Co
                                              HumanMessage(content=planner_message)])
     sections = report_sections.sections
 
-    if sections_user_approval:
+    if sections_user_approval and configurable.ask_for_approval:
         return Command(goto="human_feedback", update={"sections": sections})
     else:
         return Command(goto=[
@@ -140,9 +141,10 @@ async def human_feedback(state: ReportState, config: RunnableConfig) -> Command[
         f"Research needed: {'Yes' if section.research else 'No'}\n"
         for section in sections
     )
+
     interrupt_message = f"""Please provide feedback on the following report plan. 
-                        \n\n{sections_str}\n
-                        \nDoes the report plan meet your needs?\nPass 'true' to approve the report plan.\nOr, provide feedback to regenerate the report plan:"""
+                    \n\n{sections_str}\n
+                    \nDoes the report plan meet your needs?\nPass 'true' to approve the report plan.\nOr, provide feedback to regenerate the report plan:"""
     feedback = interrupt(interrupt_message)
     if (isinstance(feedback, bool) and feedback is True) or (isinstance(feedback, str) and feedback.lower() == "true"):
         return Command(goto=[
@@ -152,10 +154,9 @@ async def human_feedback(state: ReportState, config: RunnableConfig) -> Command[
         ])
     elif isinstance(feedback, str):
         return Command(goto="generate_report_plan", 
-                       update={"feedback_on_report_plan": [feedback]})
+                    update={"feedback_on_report_plan": [feedback]})
     else:
         raise TypeError(f"Interrupt value of type {type(feedback)} is not supported.")
-
 
 async def generate_queries(state: SectionState, config: RunnableConfig):
     messages = state["messages"]
