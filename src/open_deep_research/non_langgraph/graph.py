@@ -17,6 +17,7 @@ from langsmith import traceable
 import anthropic
 from anthropic.types import Message
 
+from langgraph.func import entrypoint
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,7 @@ class ResearchConfig:
     model: str = "claude-3-5-sonnet-latest"  # Web search supported model
     writer_model: str = "claude-opus-4-20250514"  # Citations supported model
     temperature: float = 0.7
-    max_tokens: int = 10000
+    max_tokens: int = 8000
     
     # Research parameters
     max_iterations: int = 3
@@ -496,6 +497,21 @@ def create_research_agent(config: Optional[ResearchConfig] = None) -> DeepResear
     
     return DeepResearchAgent(config)
 
+
+@entrypoint()
+def langgraph_workflow(input: dict) -> dict:
+    """Wrap with LangGraph to use in evals."""
+
+    # Create agent with default config
+    agent = create_research_agent()
+
+    # Run research
+    result = agent.research(input['messages'])
+
+    # Return the final report
+    return {
+        "final_report": result['content'],
+    }
 
 # Example usage
 if __name__ == "__main__":
