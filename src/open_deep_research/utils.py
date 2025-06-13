@@ -1555,12 +1555,16 @@ async def summarize_webpage(model: BaseChatModel, webpage_content: str) -> str:
                 "cache_control": {"type": "ephemeral", "ttl": "1h"}
             }]
 
-        summary = await model.with_structured_output(Summary).with_retry(stop_after_attempt=2).ainvoke([
-            {"role": "system", "content": SUMMARIZATION_PROMPT.format(webpage_content=webpage_content)},
-            {"role": "user", "content": user_input_content},
-        ])
-    except:
-        # fall back on the raw content
+        summary = await asyncio.wait_for(
+            model.with_structured_output(Summary).with_retry(stop_after_attempt=2).ainvoke([
+                {"role": "system", "content": SUMMARIZATION_PROMPT.format(webpage_content=webpage_content)},
+                {"role": "user", "content": user_input_content},
+            ]),
+            timeout=30.0  # 30 second timeout
+        )
+    except (asyncio.TimeoutError, Exception) as e:
+        # fall back on the raw content for both timeouts and other exceptions
+        print(f"Failed to summarize webpage: {str(e)}")
         return webpage_content
 
     def format_summary(summary: Summary):

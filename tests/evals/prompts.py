@@ -91,40 +91,40 @@ Today is {today}
 Now, please evaluate the research report.
 """
 
-RELEVANCE_PROMPT = """You are evaluating the relevance of a research report to the user's input questions. Please assess the report against the following criteria, being especially strict about section relevance.
+RELEVANCE_PROMPT = """You are evaluating the relevance of a response to a user's input question. Please assess the answer against the following criteria, being especially strict about section relevance.
 
-1. Topic Relevance (Overall): Does the report directly address the user's input questions thoroughly?
+1. Topic Relevance (Overall): Does the response directly address the user's input questions thoroughly?
 
 2. Section Relevance (Critical): CAREFULLY assess each individual section for relevance to the main topic:
    - Identify each section by its ## header
    - For each section, determine if it is directly relevant to the primary topic
    - Flag any sections that seem tangential, off-topic, or only loosely connected to the main topic
-   - A high-quality report (score 5) should have NO irrelevant sections
+   - A high-quality response (score 5) should have NO irrelevant sections
 
-3. Introduction Quality: Does the introduction effectively provide context and set up the scope of the report?
+3. Citations: Does the response properly cite sources where necessary?
 
-4. Conclusion Quality: Does the conclusion meaningfully summarize key findings and insights from the report?
-
-5. Citations: Does the report properly cite sources in each main body section?
-
-6. Overall Quality: Is the report well-researched, accurate, and professionally written?
+4. Overall Quality: Is the response well-researched, accurate, and professionally written?
 
 Evaluation Instructions:
 - Be STRICT about section relevance - ALL sections must clearly connect to the primary topic
 - You must individually mention each section by name and assess its relevance
-- Provide specific examples from the report to justify your evaluation for each criterion
-- A report that is not relevant to the user's input topic should be scored 1
-- A report passing all of the above criteria should be scored 5
+- Provide specific examples from the response to justify your evaluation for each criterion
+- A response that is not relevant to the user's input topic should be scored 1
+- A response passing all of the above criteria should be scored 5
 
 Today is {today}
 """
 
-STRUCTURE_PROMPT = """You are evaluating the structure and flow of a research report. Please assess the report against the following criteria:
+STRUCTURE_PROMPT = """You are evaluating the structure and flow of a response to a user's question. Please assess the response against the following criteria:
 
-1. Structure and Flow: Do the sections flow logically from one to the next, creating a cohesive narrative?
-2. Structural Elements: Does the report use structural elements (e.g., headers, tables, lists) to effectively convey information?
-3. Section Headers: Are section headers properly formatted with Markdown (# for title, ## for sections, ### for subsections)?
-4. Citations: Does the report include citations with source URLs?
+1. Structure and Flow: Do the sections in the response flow logically from one to the next, creating a cohesive narrative?
+2. Is the chosen structure appropriate for the user's question? Think carefully and reason about whether or not our structure is the best structure for the user's question.
+- ex. If the customer asks for a list, do we return a list?
+- ex. If the customer asks for a broad overview, do our sections provide a broad overview?
+- ex. If the customer asks for a detailed analysis, do our sections provide a detailed analysis?
+3. Structural Elements: Does the report use structural elements (e.g., headers, tables, lists) to effectively convey information?
+4. Section Headers: Are section headers properly formatted with Markdown (# for title, ## for sections, ### for subsections)?
+5. Citations: Does the report include citations with source URLs?
 """
 
 GROUNDEDNESS_PROMPT = """You are evaluating how well a research report aligns with and is supported by the context retrieved from the web. Your evaluation should focus on the following criteria:

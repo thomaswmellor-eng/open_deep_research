@@ -208,7 +208,7 @@ async def write_section(state: SectionState, config: RunnableConfig):
         model_provider=writer_provider,
         model_kwargs=writer_model_kwargs,
         max_retries=configurable.max_structured_output_retries
-    ).with_structured_output(SectionOutput)
+        ).with_structured_output(SectionOutput)
 
     section_content = await writer_model.ainvoke([SystemMessage(content=section_writer_instructions),
                                            HumanMessage(content=section_writer_inputs_formatted)])
