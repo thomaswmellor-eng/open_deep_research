@@ -98,41 +98,27 @@ async def generate_report_general_researcher(
             "thread_id": str(uuid.uuid4()),
         }
     }
-    config["configurable"]["search_api"] = "anthropic"
+    config["configurable"]["search_api"] = "openai"
     config["configurable"]["process_search_results"] = process_search_results
-    config["configurable"]["summarization_model"] = summarization_model
-    config["configurable"]["summarization_provider"] = summarization_model_provider
-    config["configurable"]["writer_model"] = writer_model
-    config["configurable"]["writer_provider"] = writer_model_provider
-    config["configurable"]["writer_model_kwargs"] = writer_model_kwargs
-    config["configurable"]["clarify_with_user"] = clarify_with_user
-    config["configurable"]["sections_user_approval"] = sections_user_approval
+    config["configurable"]["summarization_model"] = "openai:gpt-4.1"
+    config["configurable"]["summarization_model_kwargs"] = {"max_tokens": 10000}
+    config["configurable"]["research_model"] = "openai:gpt-4.1"
+    config["configurable"]["research_model_kwargs"] = {"max_tokens": 10000}
+    config["configurable"]["reflection_model"] = "openai:gpt-4.1"
+    config["configurable"]["reflection_model_kwargs"] = {"max_tokens": 10000}
+    config["configurable"]["outliner_model"] = "openai:gpt-4.1"
+    config["configurable"]["outliner_model_kwargs"] = {"max_tokens": 10000}
+    config["configurable"]["final_report_model"] = "openai:gpt-4.1"
+    config["configurable"]["final_report_model_kwargs"] = {"max_tokens": 10000}
     config["configurable"]["max_search_depth"] = max_search_depth
     config["configurable"]["max_structured_output_retries"] = max_structured_output_retries
-    config["configurable"]["planner_model"] = planner_model
-    config["configurable"]["planner_provider"] = planner_model_provider
-    config["configurable"]["planner_model_kwargs"] = planner_model_kwargs
-    config["configurable"]["one_shot_mode"] = one_shot_mode
+    config["configurable"]["outline_user_approval"] = sections_user_approval
 
     final_state = await graph.ainvoke(
         {"messages": messages},
         config
     )
     return final_state
-
-async def generate_report_anthropic_researcher(messages: list[MessageLikeRepresentation]):
-    agent = create_research_agent()
-    # This is a hack to get the messages into the correct format
-    messages_dict = [{
-        "role": "user" if message["type"] == "human" else "assistant",
-        "content": message["content"],
-    }for message in messages]
-
-    result = agent.research(messages_dict)
-
-    return {
-        "final_report": result['content'],
-    }
 
 async def target(inputs: dict):
     # return await generate_report_multi_agent(inputs["messages"])
@@ -146,20 +132,8 @@ async def main():
         data=client.list_examples(dataset_name=dataset_name, splits=["split1"]),
         evaluators=evaluators,
         # experiment_prefix=f"ODR: GR - SM:{summarization_model} WM:{writer_model}  #",
-        experiment_prefix=f"GR - Anthropic 3.7 Sonnet, One Shot Mode  #",
+        experiment_prefix=f"GR - OpenAI 4.1, One Shot Mode  #",
         max_concurrency=1,
-        metadata={
-            "process_search_results": process_search_results,
-            "sections_user_approval": sections_user_approval,
-            "summarization_model": summarization_model,
-            "writer_model": writer_model,
-            "writer_model_kwargs": writer_model_kwargs,
-            "planner_model": planner_model,
-            "planner_model_kwargs": planner_model_kwargs,
-            "max_search_depth": max_search_depth,
-            "max_structured_output_retries": max_structured_output_retries,
-            "one_shot_mode": one_shot_mode,
-        },
     )
 
 if __name__ == "__main__":

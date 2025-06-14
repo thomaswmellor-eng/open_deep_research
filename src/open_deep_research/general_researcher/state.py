@@ -15,22 +15,6 @@ class Queries(BaseModel):
         description="List of search queries.",
     )
 
-class SectionWriterOutput(BaseModel):
-    section_content: str = Field(
-        description="The content of the section.",
-    )
-
-class SectionFeedback(BaseModel):
-    grade: Literal["pass","fail"] = Field(
-        description="Evaluation result indicating whether the section meets requirements ('pass') or needs revision ('fail')."
-    )
-    follow_up_queries: List[SearchQuery] = Field(
-        description="List of follow-up search queries.",
-    )
-    feedback: str = Field(
-        description="Feedback on the section that motivates the follow-up queries.",
-    )
-
 class Section(BaseModel):
     name: str = Field(
         description="Name for this section of the report.",
