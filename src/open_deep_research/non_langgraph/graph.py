@@ -499,9 +499,10 @@ def create_research_agent(config: Optional[ResearchConfig] = None) -> DeepResear
 
 from langchain_core.runnables import RunnableConfig
 from open_deep_research.non_langgraph.configuration import Configuration
+from langgraph.graph import MessagesState
 
-@entrypoint()
-def wrap_agent_with_langgraph(input: dict, config: RunnableConfig) -> dict:
+@entrypoint(config_schema=Configuration)
+def wrap_agent_with_langgraph(input: MessagesState, config: RunnableConfig) -> dict:
     """
     LangGraph entrypoint that wraps the DeepResearchAgent for Studio use.
     
