@@ -497,20 +497,51 @@ def create_research_agent(config: Optional[ResearchConfig] = None) -> DeepResear
     
     return DeepResearchAgent(config)
 
+from langchain_core.runnables import RunnableConfig
+from open_deep_research.non_langgraph.configuration import Configuration
 
 @entrypoint()
-def langgraph_workflow(input: dict) -> dict:
-    """Wrap with LangGraph to use in evals."""
+def wrap_agent_with_langgraph(input: dict, config: RunnableConfig) -> dict:
+    """
+    LangGraph entrypoint that wraps the DeepResearchAgent for Studio use.
+    
+    This function extracts configuration from LangGraph Studio's UI and passes
+    it to the research agent, enabling users to customize research parameters
+    through the Studio interface.
+    
+    Args:
+        input: Dict containing 'messages' list for the research query
+        config: LangGraph RunnableConfig with configurable parameters
+        
+    Returns:
+        Dict with 'final_report' containing the research results
+    """
+    # Extract LangGraph Studio configuration
+    configurable = Configuration.from_runnable_config(config)
 
-    # Create agent with default config
-    agent = create_research_agent()
+    # Convert LangGraph Configuration to ResearchConfig
+    research_config = ResearchConfig(
+        model=configurable.model,
+        writer_model=configurable.writer_model,
+        temperature=configurable.temperature,
+        max_tokens=configurable.max_tokens,
+        max_iterations=configurable.max_iterations,
+        max_searches_total=configurable.max_searches_total,
+        enable_clarification_qa=configurable.enable_clarification_qa,
+        clarification_timeout=configurable.clarification_timeout,
+        search_domains=configurable.search_domains,
+        search_location=configurable.search_location,
+    )
 
-    # Run research
+    # Create and run research agent
+    agent = create_research_agent(research_config)
     result = agent.research(input['messages'])
 
-    # Return the final report
+    # Return structured result for LangGraph Studio
     return {
         "final_report": result['content'],
+        "metadata": result.get('metadata', {}),
+        "sources": result.get('sources', [])
     }
 
 # Example usage
@@ -518,8 +549,16 @@ if __name__ == "__main__":
     # Configure logging
     logging.basicConfig(level=logging.INFO)
     
+    # Configure agent for testing (disable QA, limit iterations)
+    config = ResearchConfig(
+        enable_clarification_qa=False,  # Disable for automated testing
+        max_iterations=2,  # Limit iterations for faster testing
+        max_tokens=3000,   # Reasonable token limit
+        temperature=0.3    # Lower temperature for consistent results
+    )
+
     # Create agent with default config
-    agent = create_research_agent()
+    agent = create_research_agent(config)
     
     # Example research query
     messages = [

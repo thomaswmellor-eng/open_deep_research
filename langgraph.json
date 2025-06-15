@@ -4,7 +4,7 @@
       "open_deep_research": "./src/open_deep_research/graph.py:graph",
       "open_deep_research_multi_agent": "./src/open_deep_research/multi_agent.py:graph",
       "open_deep_research_workflow_v2": "./src/open_deep_research/workflow/workflow.py:workflow",
-      "open_deep_research_non_langgraph": "./src/open_deep_research/non_langgraph/graph.py:langgraph_workflow"
+      "open_deep_research_non_langgraph": "./src/open_deep_research/non_langgraph/graph.py:wrap_agent_with_langgraph"
     },
     "python_version": "3.11",
     "env": "./.env",

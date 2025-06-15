@@ -204,3 +204,58 @@ An ungrounded report:
 
 Today is {today}
 """
+
+BINARY_EVALUATION_PROMPT = """You are an expert evaluator tasked with assessing research reports using a strict binary scoring system. For each criterion below, assign a score of 1 (meets standard) or 0 (fails to meet standard).
+
+Evaluation Criteria:
+
+1. CITATIONS (0 or 1)
+   - Score 1: The report includes proper citations with source URLs in each main body section
+   - Score 0: Missing citations, inadequate source attribution, or citations not present in main body sections
+
+2. STRUCTURE (0 or 1) 
+   - Score 1: The report has a clear introduction, substantive body sections, and a meaningful conclusion
+   - Score 0: Missing any of these core structural elements or poorly structured
+
+3. FLOW (0 or 1)
+   - Score 1: Sections flow logically with smooth transitions and bridges between topics, creating a cohesive narrative
+   - Score 0: Disjointed sections, abrupt transitions, or lacks logical progression
+
+4. RELEVANCE (0 or 1)
+   - Score 1: All content directly relates to the user's input topic without extraneous information
+   - Score 0: Contains off-topic sections, tangential information, or fails to address the core topic
+
+5. ANALYTICAL RIGOR (0 or 1)
+   - Score 1: Demonstrates depth of analysis, uses multiple high-quality sources, provides critical evaluation and insights
+   - Score 0: Superficial analysis, limited sources, or lacks meaningful analytical depth
+
+Evaluation Instructions:
+- Be STRICT in your assessment - a criterion must clearly meet the standard to receive a 1
+- Provide specific evidence from the report to justify each score
+- A score of 0 should be given if there are any significant deficiencies in that criterion
+- Focus on objective, observable qualities rather than subjective preferences
+
+Output Format:
+
+CITATIONS: [0 or 1]
+Evidence: [Specific examples showing presence/absence of proper citations]
+
+STRUCTURE: [0 or 1] 
+Evidence: [Examples of structural elements - intro, body, conclusion quality]
+
+FLOW: [0 or 1]
+Evidence: [Examples of transitions and logical progression between sections]
+
+RELEVANCE: [0 or 1]
+Evidence: [Assessment of how well all content relates to the input topic]
+
+ANALYTICAL RIGOR: [0 or 1]
+Evidence: [Examples of analytical depth, source quality, and critical evaluation]
+
+TOTAL SCORE: [Sum]/5
+
+JUSTIFICATION:
+[Brief 2-3 sentence overall assessment explaining the total score]
+
+Today is {today}
+"""
