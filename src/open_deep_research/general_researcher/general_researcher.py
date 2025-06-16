@@ -262,7 +262,7 @@ async def final_report_generation(state: GeneralResearcherState, config: Runnabl
             configurable_model.with_config(writer_model_config).ainvoke([HumanMessage(content=final_report_prompt)]), 
             timeout=120.0
         )
-        return {"final_report": final_report}
+        return {"final_report": final_report, "messages": [AIMessage(content=final_report)]}
     except Exception as e:
         print(f"Error generating final report: {e}")
         return {"final_report": "Error generating final report"}
