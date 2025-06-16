@@ -7,9 +7,7 @@ from langchain_core.messages import MessageLikeRepresentation
 from open_deep_research.general_researcher.general_researcher import general_researcher_builder
 from open_deep_research.multi_agent import supervisor_builder
 from open_deep_research.workflow.workflow import builder
-from langgraph.types import Command
 from langgraph.checkpoint.memory import MemorySaver
-from open_deep_research.anthropic_researcher.anthropic_researcher import create_research_agent
 import uuid
 
 load_dotenv("../.env")
@@ -98,18 +96,18 @@ async def generate_report_general_researcher(
             "thread_id": str(uuid.uuid4()),
         }
     }
-    config["configurable"]["search_api"] = "openai"
+    config["configurable"]["search_api"] = "tavily"
     config["configurable"]["process_search_results"] = process_search_results
-    config["configurable"]["summarization_model"] = "openai:gpt-4.1"
-    config["configurable"]["summarization_model_kwargs"] = {"max_tokens": 10000}
-    config["configurable"]["research_model"] = "openai:gpt-4.1"
-    config["configurable"]["research_model_kwargs"] = {"max_tokens": 10000}
-    config["configurable"]["reflection_model"] = "openai:gpt-4.1"
-    config["configurable"]["reflection_model_kwargs"] = {"max_tokens": 10000}
+    config["configurable"]["summarization_model"] = "anthropic:claude-3-5-haiku-latest"
+    config["configurable"]["summarization_model_max_tokens"] = 10000
+    config["configurable"]["research_model"] = "anthropic:claude-3-7-sonnet-latest"
+    config["configurable"]["research_model_max_tokens"] = 10000
+    config["configurable"]["reflection_model"] = "anthropic:claude-3-7-sonnet-latest"
+    config["configurable"]["reflection_model_max_tokens"] = 10000
     config["configurable"]["outliner_model"] = "openai:gpt-4.1"
-    config["configurable"]["outliner_model_kwargs"] = {"max_tokens": 10000}
-    config["configurable"]["final_report_model"] = "openai:gpt-4.1"
-    config["configurable"]["final_report_model_kwargs"] = {"max_tokens": 10000}
+    config["configurable"]["outliner_model_max_tokens"] = 10000
+    config["configurable"]["final_report_model"] = "anthropic:claude-3-7-sonnet-latest"
+    config["configurable"]["final_report_model_max_tokens"] = 10000
     config["configurable"]["max_search_depth"] = max_search_depth
     config["configurable"]["max_structured_output_retries"] = max_structured_output_retries
     config["configurable"]["outline_user_approval"] = sections_user_approval
@@ -124,7 +122,6 @@ async def target(inputs: dict):
     # return await generate_report_multi_agent(inputs["messages"])
     # return await generate_report_workflow(inputs["messages"])
     return await generate_report_general_researcher(inputs["messages"])
-    # return await generate_report_anthropic_researcher(inputs["messages"])
 
 async def main():
     return await client.aevaluate(
@@ -132,7 +129,7 @@ async def main():
         data=client.list_examples(dataset_name=dataset_name, splits=["split1"]),
         evaluators=evaluators,
         # experiment_prefix=f"ODR: GR - SM:{summarization_model} WM:{writer_model}  #",
-        experiment_prefix=f"GR - OpenAI 4.1, One Shot Mode  #",
+        experiment_prefix=f"GR - Tavily Search, Anthropic Gen, One Shot Mode  #",
         max_concurrency=1,
     )
 
