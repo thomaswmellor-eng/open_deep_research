@@ -5,33 +5,32 @@ from langgraph.constants import Send
 from langgraph.graph import START, END, StateGraph
 from langgraph.types import interrupt, Command
 import asyncio
-from typing import Literal
+import warnings
+from typing import Literal, cast
+from langchain_core.tools import BaseTool
+from langchain_mcp_adapters.client import MultiServerMCPClient
+
 from open_deep_research.general_researcher.configuration import (
     WorkflowConfiguration, 
     SearchAPI, 
-    MODELS_WITH_WEB_SEARCH, 
-    get_model_with_web_search,
     extract_content_from_response,
-    call_source_extractor
+    call_source_extractor,
+    MODELS_WITH_WEB_SEARCH
 )
 from open_deep_research.general_researcher.state import (
-    UpfrontModelProviderResearcherState,
-    UpfrontWebResearcherState,
+    UpfrontResearcherState,
     GeneralResearcherState,
     GeneralResearcherStateInput,
     GeneralResearcherStateOutput,
-    Queries,
     Outline,
     ReflectionResult
 )
 from open_deep_research.utils import (
     get_config_value, 
-    get_search_params, 
-    select_and_execute_search,
-    get_today_str
+    tavily_search,
+    duckduckgo_search
 )
 from open_deep_research.general_researcher.prompts import (
-    query_writer_instructions, 
     response_structure_instructions, 
     initial_upfront_model_provider_web_search_system_prompt,
     follow_up_upfront_model_provider_web_search_system_prompt,
@@ -45,20 +44,48 @@ configurable_model = init_chat_model(
     configurable_fields=("model", "max_tokens"),
 )
 
-def initial_router(state: GeneralResearcherState, config: RunnableConfig):
+
+async def get_search_tool(search_api: SearchAPI):
+    if search_api == SearchAPI.ANTHROPIC:
+        return [{"type": "web_search_20250305", "name": "web_search"}]
+    elif search_api == SearchAPI.OPENAI:
+        return [{"type": "web_search_preview"}]
+    elif search_api == SearchAPI.TAVILY:
+        search_tool = tavily_search
+        tool_metadata = {**(search_tool.metadata or {}), "type": "search", "name": "web_search"}
+        search_tool.metadata = tool_metadata
+        return [search_tool]
+    elif search_api == SearchAPI.DUCKDUCKGO:
+        search_tool = duckduckgo_search
+        tool_metadata = {**(search_tool.metadata or {}), "type": "search", "name": "web_search"}
+        search_tool.metadata = tool_metadata
+        return [search_tool]
+
+async def load_mcp_tools(
+    config: RunnableConfig,
+    existing_tool_names: set[str],
+) -> list[BaseTool]:
     configurable = WorkflowConfiguration.from_runnable_config(config)
-    search_api = SearchAPI(get_config_value(configurable.search_api))
-    if (
-        search_api in MODELS_WITH_WEB_SEARCH
-        and configurable.research_model in {model.value for model in MODELS_WITH_WEB_SEARCH[search_api]}
-    ):
-        return "upfront_model_provider_researcher"
-    else:
-        return "upfront_web_researcher"
+    if not configurable.mcp_server_config:
+        return []
+    mcp_server_config = configurable.mcp_server_config
+    client = MultiServerMCPClient(mcp_server_config)
+    mcp_tools = await client.get_tools()
+    filtered_mcp_tools: list[BaseTool] = []
+    for tool in mcp_tools:
+        if tool.name in existing_tool_names:
+            warnings.warn(
+                f"Trying to add MCP tool with a name {tool.name} that is already in use - this tool will be ignored."
+            )
+            continue
+        if configurable.mcp_tools_to_include and tool.name not in configurable.mcp_tools_to_include:
+            continue
+        filtered_mcp_tools.append(tool)
+    return filtered_mcp_tools
 
 
 # Upfront Model Provider Research
-async def model_provider_web_search(state: UpfrontModelProviderResearcherState, config: RunnableConfig) -> Command[Literal["model_provider_reflection", "__end__"]]:
+async def research(state: UpfrontResearcherState, config: RunnableConfig) -> Command[Literal["reflection", "__end__"]]:
     search_attempts = state.get("search_attempts", 0)
     configurable = WorkflowConfiguration.from_runnable_config(config)
     search_api = SearchAPI(get_config_value(configurable.search_api))
@@ -67,7 +94,15 @@ async def model_provider_web_search(state: UpfrontModelProviderResearcherState, 
         "max_tokens": configurable.research_model_max_tokens,
     }
     # Perform web search and then forward to the model_provider_reflection
-    model_with_websearch = get_model_with_web_search(configurable_model.with_config(research_model_config), search_api)
+    tools = []
+    search_tool = await get_search_tool(search_api)
+    tools.extend(search_tool)
+    existing_tool_names = {tool.name if hasattr(tool, "name") else tool.get("name", "web_search") for tool in tools}
+    tools_by_name = {tool.name if hasattr(tool, "name") else tool.get("name", "web_search"):tool for tool in tools}
+    mcp_tools = await load_mcp_tools(config, existing_tool_names)
+    tools.extend(mcp_tools)
+
+    model_with_search = configurable_model.with_config(research_model_config).bind_tools(tools)
     system_prompt = initial_upfront_model_provider_web_search_system_prompt if search_attempts == 0 else follow_up_upfront_model_provider_web_search_system_prompt
     research_messages = state.get("research_messages", [])
     if search_attempts == 0:
@@ -75,11 +110,24 @@ async def model_provider_web_search(state: UpfrontModelProviderResearcherState, 
         research_messages = state.get("messages").copy()
     while search_attempts < configurable.max_search_depth:
         try:
-            response = await model_with_websearch.ainvoke([SystemMessage(content=system_prompt), *research_messages])
-            collected_sources = call_source_extractor(response, search_attempts, search_api)
-            current_findings = extract_content_from_response(response)
+            response = await model_with_search.ainvoke([SystemMessage(content=system_prompt), *research_messages])
+            collected_sources = []
+            current_findings = ""
+            # If the model supports web search, we can try to extract sources from the response
+            if search_api in MODELS_WITH_WEB_SEARCH:
+                collected_sources = call_source_extractor(response, search_attempts, search_api)
+                current_findings = extract_content_from_response(response)
+            # If there are tool calls made, then these are actual tool calls from non-native web search, or MCP tools. We need to add to the notes and sources.
+            for tool_call in response.tool_calls:
+                tool = tools_by_name[tool_call["name"]]
+                try:
+                    observation = await tool.ainvoke(tool_call["args"], config)
+                except NotImplementedError:
+                    observation = tool.invoke(tool_call["args"], config)
+                current_findings += f"\n{observation}"
+            
             return Command(
-                goto="model_provider_reflection",
+                goto="reflection",
                 update={
                     "notes": [current_findings],
                     "research_messages": research_messages,
@@ -93,7 +141,7 @@ async def model_provider_web_search(state: UpfrontModelProviderResearcherState, 
     return Command(goto="__end__")
 
 
-async def model_provider_reflection(state: UpfrontModelProviderResearcherState, config: RunnableConfig) -> Command[Literal["model_provider_web_search", "__end__"]]:
+async def reflection(state: UpfrontResearcherState, config: RunnableConfig) -> Command[Literal["research", "__end__"]]:
     messages = state["messages"]
     notes = state.get("notes", [])
     configurable = WorkflowConfiguration.from_runnable_config(config)
@@ -125,7 +173,7 @@ async def model_provider_reflection(state: UpfrontModelProviderResearcherState, 
                 ))
             ]
             return Command(
-                goto="model_provider_web_search",
+                goto="research",
                 update={
                     "research_messages": research_messages,
                 }
@@ -136,94 +184,11 @@ async def model_provider_reflection(state: UpfrontModelProviderResearcherState, 
         return Command(goto="model_provider_reflection", update={"search_attempts": state.get("search_attempts", 0) + 1})
 
 
-upfront_model_provider_researcher_builder = StateGraph(UpfrontModelProviderResearcherState)
-upfront_model_provider_researcher_builder.add_node("model_provider_web_search", model_provider_web_search)
-upfront_model_provider_researcher_builder.add_node("model_provider_reflection", model_provider_reflection)
-upfront_model_provider_researcher_builder.add_edge(START, "model_provider_web_search")
-upfront_model_provider_researcher = upfront_model_provider_researcher_builder.compile()
-
-
-# Upfront Web Research
-async def generate_upfront_queries(state: UpfrontWebResearcherState, config: RunnableConfig) -> Command[Literal["upfront_search", "__end__"]]:
-    messages = state["messages"]
-    notes = state.get("notes", [])
-    historical_queries = state.get("historical_queries", [])
-    configurable = WorkflowConfiguration.from_runnable_config(config)
-    research_model_config = {
-        "model": configurable.research_model,
-        "max_tokens": configurable.research_model_max_tokens,
-    }
-    research_model = configurable_model.with_config(research_model_config).with_structured_output(Queries).with_retry(stop_after_attempt=configurable.max_structured_output_retries)
-
-    try:
-        query_results = await asyncio.wait_for(
-            research_model.ainvoke(
-                [HumanMessage(
-                    content=query_writer_instructions.format(
-                        messages=get_buffer_string(messages),
-                        number_of_queries=configurable.number_of_queries,
-                        query_history="\n".join([f"{i+1}. {q}" for i, q in enumerate(historical_queries)]),
-                        context="\n".join(notes),
-                        today=get_today_str())
-                    )
-                ]
-            ),
-        timeout=30.0)
-
-        query_list = [query.search_query for query in query_results.queries]
-        if not query_list:
-            return Command(
-                goto="__end__"
-            )
-        return Command(
-            goto="upfront_search",
-            update={
-                "current_queries": query_list,
-            }
-        )
-    except Exception as e:
-        print(f"Error generating queries: {e}")
-        return Command(
-            goto="generate_upfront_queries",
-            update={"search_attempts": state.get("search_attempts", 0) + 1}
-        )
-
-
-async def upfront_search(state: UpfrontWebResearcherState, config: RunnableConfig) -> Command[Literal["generate_upfront_queries", "__end__"]]:
-    current_queries = state.get("current_queries", [])
-    search_attempts = state.get("search_attempts", 0)
-    configurable = WorkflowConfiguration.from_runnable_config(config)
-    try:
-        search_results = await select_and_execute_search(
-            get_config_value(configurable.search_api),
-            current_queries,
-            get_search_params(get_config_value(configurable.search_api), configurable.search_api_config or {})
-        )
-        # TODO: Potentially format the search results into a more readable and specific format before adding to notes.
-        # If we have run out of search attempts, we go to generate an outline. If not, we go back to the query generator.
-        return Command(
-            goto= "generate_upfront_queries" if search_attempts < configurable.max_search_depth else "generate_outline",
-            update={
-                "notes": ["From these queries: " + "\n".join(current_queries) + "\n" + "We found this information: " + search_results],
-                "search_attempts": search_attempts + 1,
-                "historical_queries": [current_queries],
-                "current_queries": []
-            }
-        )
-    except Exception as e:
-        print(f"Error searching: {e}")
-        # If we have run out of search attempts, we go to generate an outline. If not, we try again directly in this node.
-        return Command(
-            goto= "upfront_search" if search_attempts < configurable.max_search_depth else "__end__",
-            update={"search_attempts": search_attempts + 1}
-        )
-    
-upfront_web_researcher_builder = StateGraph(UpfrontWebResearcherState)
-upfront_web_researcher_builder.add_node("generate_upfront_queries", generate_upfront_queries)
-upfront_web_researcher_builder.add_node("upfront_search", upfront_search)
-upfront_web_researcher_builder.add_edge(START, "generate_upfront_queries")
-upfront_web_researcher_builder.add_edge("generate_upfront_queries", "upfront_search")
-upfront_web_researcher = upfront_web_researcher_builder.compile()
+upfront_researcher_builder = StateGraph(UpfrontResearcherState)
+upfront_researcher_builder.add_node("research", research)
+upfront_researcher_builder.add_node("reflection", reflection)
+upfront_researcher_builder.add_edge(START, "research")
+upfront_researcher = upfront_researcher_builder.compile()
 
 
 # Outline Generation after Upfront Research
@@ -305,17 +270,12 @@ async def final_report_generation(state: GeneralResearcherState, config: Runnabl
 
 
 general_researcher_builder = StateGraph(GeneralResearcherState, input=GeneralResearcherStateInput, output=GeneralResearcherStateOutput, config_schema=WorkflowConfiguration)
-general_researcher_builder.add_node("upfront_web_researcher", upfront_web_researcher)
-general_researcher_builder.add_node("upfront_model_provider_researcher", upfront_model_provider_researcher)
+general_researcher_builder.add_node("upfront_researcher", upfront_researcher)
 general_researcher_builder.add_node("generate_outline", generate_outline)
 general_researcher_builder.add_node("human_feedback", human_feedback)
 general_researcher_builder.add_node("final_report_generation", final_report_generation)
-general_researcher_builder.add_conditional_edges(START, initial_router, {
-    "upfront_web_researcher": "upfront_web_researcher",
-    "upfront_model_provider_researcher": "upfront_model_provider_researcher"
-})
-general_researcher_builder.add_edge("upfront_web_researcher", "generate_outline")
-general_researcher_builder.add_edge("upfront_model_provider_researcher", "generate_outline")
+general_researcher_builder.add_edge(START, "upfront_researcher")
+general_researcher_builder.add_edge("upfront_researcher", "generate_outline")
 general_researcher_builder.add_edge("final_report_generation", END)
 
 general_researcher = general_researcher_builder.compile()

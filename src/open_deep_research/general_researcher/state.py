@@ -50,17 +50,11 @@ class ReflectionResult:
 
 # State Definitions
 
-class UpfrontModelProviderResearcherState(MessagesState):
+class UpfrontResearcherState(MessagesState):
     notes: Annotated[Optional[list[str]], operator.add]
     search_attempts: Optional[int] = 0
     research_messages: Optional[list[MessageLikeRepresentation]]
     collected_sources: Annotated[Optional[list[SearchSource]], operator.add]
-
-class UpfrontWebResearcherState(MessagesState):
-    notes: Annotated[list[str], operator.add]
-    historical_queries: Annotated[list[str], operator.add]
-    current_queries: list[str]
-    search_attempts: int = 0
 
 class GeneralResearcherStateInput(MessagesState):
     """InputState is only 'messages'"""
@@ -71,6 +65,7 @@ class GeneralResearcherStateOutput(MessagesState):
 class GeneralResearcherState(MessagesState):
     final_report: str
     notes: Annotated[list[str], operator.add]
+    collected_sources: Optional[list[SearchSource]]
     feedback_on_outline: list[str]
     historical_queries: Annotated[list[str], operator.add]
     current_queries: list[str]

@@ -44,36 +44,6 @@ Reasoning: {reasoning}
 You only need to output net new information that we have not already gathered. This will get appended to the existing information.
 """
 
-
-
-query_writer_instructions="""You are performing deep research to comprehensively answer a question that a user asked. These are the messages that have been exchanged so far between yourself and the user:
-<Messages>
-{messages}
-</Messages>
-
-<Task>
-Your goal is to generate {number_of_queries} web search queries that will help gather information for answering the user's questions comprehensively.
-
-The queries should be related to the topic in the messages from the user. They can also be used to find specific pieces of information that will help answer the question.
-Make the queries specific enough to find high-quality, relevant sources while covering the breadth needed for a very, very detailed and comprehensive answer.
-If there are any acronyms, abbreviations, or unknown terms, select a SINGLE definition of the term and fully spell it out in the queries to avoid ambiguity.
-If you are totally sure that you have all of the information that you would need to answer the question, return an empty list of queries.
-</Task>
-
-Here is a list of all of the queries that have been sent to the search engine so far already: 
-<Previous queries>
-{query_history}
-</Previous queries>
-
-This is all of the information that you have already gathered from those above search queries:
-<Information gathered already>
-{context}
-</Information gathered already>
-
-Think critically about what information is still missing to answer the user's question.
-Generate a helpful list of new queries to send to get missing information! Today is {today}
-"""
-
 response_structure_instructions="""You are performing deep research to comprehensively answer a question that a user asked.
 
 These are the messages that have been exchanged so far between yourself and the user:
@@ -303,7 +273,7 @@ final_report_generation_prompt = """Based on all the research conducted, create 
 Here are the findings from the research that you conducted:
 {findings}
 
-These are the sources that you found during research (reference these as appropriate as you write your response):
+These are the additional sources that you found during research (reference these as appropriate as you write your response):
 {source_list}
 
 We iterated on a section outline for the answer to the question. Here is the outline, follow this as best as you can:
@@ -325,4 +295,13 @@ For each section, do the following:
 - Do NOT ever refer to yourself as the writer of the report. This should be a professional report without any self-referential language. 
 - Do not say what you are doing in the report. Just write the report without any commentary from yourself.
 
-Format the report in clear markdown with proper structure and include source references where appropriate."""
+Format the report in clear markdown with proper structure and include source references where appropriate.
+
+<Citation Rules>
+- Assign each unique URL a single citation number in your text
+- End with ### Sources that lists each source with corresponding numbers
+- IMPORTANT: Number sources sequentially without gaps (1,2,3,4...) in the final list regardless of which sources you choose
+- Example format:
+  [1] Source Title: URL
+  [2] Source Title: URL
+</Citation Rules>"""

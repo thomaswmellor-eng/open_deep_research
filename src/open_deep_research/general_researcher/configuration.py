@@ -9,16 +9,9 @@ from google.ai.generativelanguage_v1beta.types import Tool as GenAITool
 class SearchAPI(Enum):
     ANTHROPIC = "anthropic"
     OPENAI = "openai"
-    GOOGLE_GENAI = "google_genai"
-    PERPLEXITY = "perplexity"
+    # GOOGLE_GENAI = "google_genai"
     TAVILY = "tavily"
-    EXA = "exa"
-    ARXIV = "arxiv"
-    PUBMED = "pubmed"
-    LINKUP = "linkup"
     DUCKDUCKGO = "duckduckgo"
-    GOOGLESEARCH = "googlesearch"
-    NONE = "none"
 
 class ModelsWithWebSearch(Enum):
     ANTHROPIC_CLAUDE_3_7_SONNET_LATEST = "anthropic:claude-3-7-sonnet-latest"
@@ -28,11 +21,11 @@ class ModelsWithWebSearch(Enum):
     ANTHROPIC_CLAUDE_3_5_SONNET_LATEST = "anthropic:claude-3-5-sonnet-latest"
     OPENAI_GPT_4_1 = "openai:gpt-4.1"
     OPENAI_GPT_4_1_MINI = "openai:gpt-4.1-mini"
-    GEMINI_GEMINI_2_5_FLASH_PREVIEW_05_20 = "google_genai:gemini-2.5-flash-preview-05-20"
-    GEMINI_GEMINI_2_5_PRO_PREVIEW_06_05 = "google_genai:gemini-2.5-pro-preview-06-05"
-    GEMINI_GEMINI_2_0_FLASH = "google_genai:gemini-2.0-flash"
-    GEMINI_GEMINI_2_0_FLASH_LITE = "google_genai:gemini-2.0-flash-lite"
-    GEMINI_GEMINI_1_5_FLASH = "google_genai:gemini-1.5-flash"
+    # GEMINI_GEMINI_2_5_FLASH_PREVIEW_05_20 = "google_genai:gemini-2.5-flash-preview-05-20"
+    # GEMINI_GEMINI_2_5_PRO_PREVIEW_06_05 = "google_genai:gemini-2.5-pro-preview-06-05"
+    # GEMINI_GEMINI_2_0_FLASH = "google_genai:gemini-2.0-flash"
+    # GEMINI_GEMINI_2_0_FLASH_LITE = "google_genai:gemini-2.0-flash-lite"
+    # GEMINI_GEMINI_1_5_FLASH = "google_genai:gemini-1.5-flash"
 
 MODELS_WITH_WEB_SEARCH = {
     SearchAPI.ANTHROPIC: {
@@ -46,26 +39,14 @@ MODELS_WITH_WEB_SEARCH = {
         ModelsWithWebSearch.OPENAI_GPT_4_1,
         ModelsWithWebSearch.OPENAI_GPT_4_1_MINI,
     },
-    SearchAPI.GOOGLE_GENAI: {
-        ModelsWithWebSearch.GEMINI_GEMINI_2_5_FLASH_PREVIEW_05_20,
-        ModelsWithWebSearch.GEMINI_GEMINI_2_5_PRO_PREVIEW_06_05,
-        ModelsWithWebSearch.GEMINI_GEMINI_2_0_FLASH,
-        ModelsWithWebSearch.GEMINI_GEMINI_2_0_FLASH_LITE,
-        ModelsWithWebSearch.GEMINI_GEMINI_1_5_FLASH,
-    },
+    # SearchAPI.GOOGLE_GENAI: {
+    #     ModelsWithWebSearch.GEMINI_GEMINI_2_5_FLASH_PREVIEW_05_20,
+    #     ModelsWithWebSearch.GEMINI_GEMINI_2_5_PRO_PREVIEW_06_05,
+    #     ModelsWithWebSearch.GEMINI_GEMINI_2_0_FLASH,
+    #     ModelsWithWebSearch.GEMINI_GEMINI_2_0_FLASH_LITE,
+    #     ModelsWithWebSearch.GEMINI_GEMINI_1_5_FLASH,
+    # },
 }
-
-def get_model_with_web_search(model, provider: SearchAPI):
-    if provider == SearchAPI.ANTHROPIC:
-        tool = {"type": "web_search_20250305", "name": "web_search", "max_uses": 3}
-        return model.bind_tools([tool])
-    elif provider == SearchAPI.OPENAI:
-        tool = {"type": "web_search_preview"}
-        return model.bind_tools([tool])
-    elif provider == SearchAPI.GOOGLE_GENAI:
-        return model.bind_tools([GenAITool(google_search={})])
-    else:
-        raise ValueError(f"Unsupported provider: {provider}")
     
 def call_source_extractor(response, iteration, search_api: SearchAPI):
     if search_api == SearchAPI.ANTHROPIC:
@@ -178,6 +159,10 @@ class WorkflowConfiguration:
     outliner_model_max_tokens: int = 10000
     final_report_model: str = "anthropic:claude-3-7-sonnet-latest"
     final_report_model_max_tokens: int = 10000
+    # MCP server configuration
+    mcp_server_config: Optional[Dict[str, Any]] = None
+    mcp_prompt: Optional[str] = None
+    mcp_tools_to_include: Optional[list[str]] = None
 
     @classmethod
     def from_runnable_config(
