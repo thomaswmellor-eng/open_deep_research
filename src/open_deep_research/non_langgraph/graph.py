@@ -507,7 +507,6 @@ from open_deep_research.non_langgraph.configuration import Configuration
 from langgraph.graph import MessagesState
 from langchain_core.messages import convert_to_openai_messages
 
-# ADD
 @entrypoint(config_schema=Configuration)
 def wrap_agent_with_langgraph(input: MessagesState, config: RunnableConfig) -> dict:
     """
@@ -543,16 +542,6 @@ def wrap_agent_with_langgraph(input: MessagesState, config: RunnableConfig) -> d
 
     # Create and run research agent
     agent = create_research_agent(research_config)
-
-    print("Here are the messages!")
-    print(input['messages'])
-
-    print("Here is the config!")
-    print(research_config)
-
-    #messages = [
-    #    {"role": "user", "content": input['messages'][0]['content']}
-    #]
 
     # LangChain Message format to OpenAI
     openai_message_format = convert_to_openai_messages(input['messages'])
