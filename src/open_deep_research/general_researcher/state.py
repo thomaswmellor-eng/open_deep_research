@@ -50,9 +50,9 @@ class ReflectionResult:
 
 # State Definitions
 
-class UpfrontResearcherState(MessagesState):
+class ResearchUnitState(MessagesState):
     notes: Annotated[Optional[list[str]], operator.add]
-    search_attempts: Optional[int] = 0
+    research_iterations: Optional[int] = 0
     research_messages: Optional[list[MessageLikeRepresentation]]
     collected_sources: Annotated[Optional[list[SearchSource]], operator.add]
 

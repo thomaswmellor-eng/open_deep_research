@@ -1,4 +1,7 @@
-initial_upfront_model_provider_web_search_system_prompt = """You are a research assistant conducting deep research. Use the web search tool to thoroughly research what the user is asking about.
+initial_upfront_model_provider_web_search_system_prompt = """You are a research assistant conducting deep research. Use the tools provided to thoroughly research what the user is asking about.
+
+You can use websearch, or any other tool provided to you.
+{mcp_prompt}
 
 Focus on:
 - Finding authoritative, comprehensive sources
@@ -8,9 +11,13 @@ Focus on:
 
 Use multiple searches as needed to cover the topic thoroughly."""
 
-follow_up_upfront_model_provider_web_search_system_prompt = """You are continuing deep research based on previous findings. Use web search to fill knowledge gaps identified in the reflection.
+follow_up_upfront_model_provider_web_search_system_prompt = """You are continuing deep research based on previous findings. Use the tools provided to fill knowledge gaps identified in the reflection.
 
-Focus on areas that need deeper investigation. Use targeted searches to find missing information and perspectives."""
+You can use websearch, or any other tool provided to you.
+{mcp_prompt}
+
+Focus on areas that need deeper investigation. Use targeted searches to find missing information and perspectives.
+"""
 
 upfront_model_provider_reflection_system_prompt = """Analyze these research findings for completeness and depth with respect to the original messages asking about the topic:
 

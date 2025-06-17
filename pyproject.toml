@@ -39,6 +39,7 @@ dependencies = [
     "langsmith>=0.3.37",
     "langchain-google-vertexai>=2.0.25",
     "langchain-google-genai>=2.1.5",
+    "ipykernel>=6.29.5",
 ]
 
 [project.optional-dependencies]

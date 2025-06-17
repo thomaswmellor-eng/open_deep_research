@@ -1,24 +1,17 @@
 from langchain.chat_models import init_chat_model
-from langchain_core.messages import HumanMessage, SystemMessage, AIMessage, get_buffer_string
+from langchain_core.messages import HumanMessage, SystemMessage, AIMessage, ToolMessage, get_buffer_string
 from langchain_core.runnables import RunnableConfig
 from langgraph.constants import Send
 from langgraph.graph import START, END, StateGraph
 from langgraph.types import interrupt, Command
 import asyncio
-import warnings
-from typing import Literal, cast
-from langchain_core.tools import BaseTool
-from langchain_mcp_adapters.client import MultiServerMCPClient
-
+from typing import Literal
 from open_deep_research.general_researcher.configuration import (
     WorkflowConfiguration, 
     SearchAPI, 
-    extract_content_from_response,
-    call_source_extractor,
-    MODELS_WITH_WEB_SEARCH
 )
 from open_deep_research.general_researcher.state import (
-    UpfrontResearcherState,
+    ResearchUnitState,
     GeneralResearcherState,
     GeneralResearcherStateInput,
     GeneralResearcherStateOutput,
@@ -26,9 +19,7 @@ from open_deep_research.general_researcher.state import (
     ReflectionResult
 )
 from open_deep_research.utils import (
-    get_config_value, 
-    tavily_search,
-    duckduckgo_search
+    get_config_value,
 )
 from open_deep_research.general_researcher.prompts import (
     response_structure_instructions, 
@@ -38,123 +29,99 @@ from open_deep_research.general_researcher.prompts import (
     gap_context_prompt,
     final_report_generation_prompt
 )
+from open_deep_research.general_researcher.utils import (
+    get_search_tool,
+    load_mcp_tools,
+    extract_notes_from_research_messages,
+)
 
 configurable_model = init_chat_model(
     max_tokens=10000,
     configurable_fields=("model", "max_tokens"),
 )
 
-
-async def get_search_tool(search_api: SearchAPI):
-    if search_api == SearchAPI.ANTHROPIC:
-        return [{"type": "web_search_20250305", "name": "web_search"}]
-    elif search_api == SearchAPI.OPENAI:
-        return [{"type": "web_search_preview"}]
-    elif search_api == SearchAPI.TAVILY:
-        search_tool = tavily_search
-        tool_metadata = {**(search_tool.metadata or {}), "type": "search", "name": "web_search"}
-        search_tool.metadata = tool_metadata
-        return [search_tool]
-    elif search_api == SearchAPI.DUCKDUCKGO:
-        search_tool = duckduckgo_search
-        tool_metadata = {**(search_tool.metadata or {}), "type": "search", "name": "web_search"}
-        search_tool.metadata = tool_metadata
-        return [search_tool]
-
-async def load_mcp_tools(
-    config: RunnableConfig,
-    existing_tool_names: set[str],
-) -> list[BaseTool]:
+# Upfront Research
+async def research(state: ResearchUnitState, config: RunnableConfig) -> Command[Literal["reflection", "__end__"]]:
     configurable = WorkflowConfiguration.from_runnable_config(config)
-    if not configurable.mcp_server_config:
-        return []
-    mcp_server_config = configurable.mcp_server_config
-    client = MultiServerMCPClient(mcp_server_config)
-    mcp_tools = await client.get_tools()
-    filtered_mcp_tools: list[BaseTool] = []
-    for tool in mcp_tools:
-        if tool.name in existing_tool_names:
-            warnings.warn(
-                f"Trying to add MCP tool with a name {tool.name} that is already in use - this tool will be ignored."
-            )
-            continue
-        if configurable.mcp_tools_to_include and tool.name not in configurable.mcp_tools_to_include:
-            continue
-        filtered_mcp_tools.append(tool)
-    return filtered_mcp_tools
-
-
-# Upfront Model Provider Research
-async def research(state: UpfrontResearcherState, config: RunnableConfig) -> Command[Literal["reflection", "__end__"]]:
-    search_attempts = state.get("search_attempts", 0)
-    configurable = WorkflowConfiguration.from_runnable_config(config)
-    search_api = SearchAPI(get_config_value(configurable.search_api))
     research_model_config = {
         "model": configurable.research_model,
         "max_tokens": configurable.research_model_max_tokens,
+        "tags": ["langsmith:nostream"]
     }
-    # Perform web search and then forward to the model_provider_reflection
+    search_api = SearchAPI(get_config_value(configurable.search_api))
+    research_messages = state.get("research_messages", [])
+    num_initial_messages = len(research_messages)
+    if len(research_messages) == 0:
+        research_messages = state.get("messages", []).copy()
+    research_iterations = state.get("research_iterations", 1)
     tools = []
-    search_tool = await get_search_tool(search_api)
-    tools.extend(search_tool)
+    tools.extend(await get_search_tool(search_api))
     existing_tool_names = {tool.name if hasattr(tool, "name") else tool.get("name", "web_search") for tool in tools}
-    tools_by_name = {tool.name if hasattr(tool, "name") else tool.get("name", "web_search"):tool for tool in tools}
     mcp_tools = await load_mcp_tools(config, existing_tool_names)
     tools.extend(mcp_tools)
+    tools_by_name = {tool.name if hasattr(tool, "name") else tool.get("name", "web_search"):tool for tool in tools}
+    research_model = configurable_model.with_config(research_model_config).bind_tools(tools)
+    tool_calling_iterations = 0
+    system_prompt = initial_upfront_model_provider_web_search_system_prompt.format(
+        mcp_prompt=configurable.mcp_prompt or ""
+    ) if research_iterations == 0 else follow_up_upfront_model_provider_web_search_system_prompt.format(
+        mcp_prompt=configurable.mcp_prompt or ""
+    )
+    # ReAct Tool Calling Loop
+    while tool_calling_iterations < 5: # TODO: Replace with configurable
+        response = await research_model.ainvoke([SystemMessage(content=system_prompt), *research_messages])
+        research_messages.append(response)
+        if len(response.tool_calls) == 0:
+            # If no MCP or non-native web search tools were called, then this research iteration is complete.
+            break
+        tool_calls = response.tool_calls
+        web_search_called = False
+        for tool_call in tool_calls:
+            tool = tools_by_name[tool_call["name"]]
+            metadata = getattr(tool, "metadata", {}) or {}
+            if metadata.get("type") == "search":
+                web_search_called = True
+            try:
+                observation = await tool.ainvoke(tool_call["args"], config)
+            except NotImplementedError:
+                observation = tool.invoke(tool_call["args"], config)
+            research_messages.append(ToolMessage(
+                content=observation,
+                name=tool_call["name"],
+                tool_call_id=tool_call["id"]
+            ))
+        # Once we perform a web search, we should exit the loop for feedback.
+        if web_search_called:
+            break
+        tool_calling_iterations += 1
+    # We need to assemble clean notes from our research_messages
+    new_notes, collected_sources = extract_notes_from_research_messages(research_messages[num_initial_messages:], research_iterations, search_api)
+    return Command(
+        goto="reflection",
+        update={
+            "notes": [new_notes],
+            "collected_sources": collected_sources,
+            "research_iterations": research_iterations + 1,
+        }
+    )
 
-    model_with_search = configurable_model.with_config(research_model_config).bind_tools(tools)
-    system_prompt = initial_upfront_model_provider_web_search_system_prompt if search_attempts == 0 else follow_up_upfront_model_provider_web_search_system_prompt
-    research_messages = state.get("research_messages", [])
-    if search_attempts == 0:
-        # If this is the first search, use the original messages as a starting point.
-        research_messages = state.get("messages").copy()
-    while search_attempts < configurable.max_search_depth:
-        try:
-            response = await model_with_search.ainvoke([SystemMessage(content=system_prompt), *research_messages])
-            collected_sources = []
-            current_findings = ""
-            # If the model supports web search, we can try to extract sources from the response
-            if search_api in MODELS_WITH_WEB_SEARCH:
-                collected_sources = call_source_extractor(response, search_attempts, search_api)
-                current_findings = extract_content_from_response(response)
-            # If there are tool calls made, then these are actual tool calls from non-native web search, or MCP tools. We need to add to the notes and sources.
-            for tool_call in response.tool_calls:
-                tool = tools_by_name[tool_call["name"]]
-                try:
-                    observation = await tool.ainvoke(tool_call["args"], config)
-                except NotImplementedError:
-                    observation = tool.invoke(tool_call["args"], config)
-                current_findings += f"\n{observation}"
-            
-            return Command(
-                goto="reflection",
-                update={
-                    "notes": [current_findings],
-                    "research_messages": research_messages,
-                    "collected_sources": collected_sources,
-                    "search_attempts": search_attempts + 1
-                }
-            )
-        except Exception as e:
-            print(f"Error in research phase: {e}")
-            search_attempts += 1
-    return Command(goto="__end__")
 
-
-async def reflection(state: UpfrontResearcherState, config: RunnableConfig) -> Command[Literal["research", "__end__"]]:
+async def reflection(state: ResearchUnitState, config: RunnableConfig) -> Command[Literal["research", "__end__"]]:
     messages = state["messages"]
     notes = state.get("notes", [])
     configurable = WorkflowConfiguration.from_runnable_config(config)
-    if state.get("search_attempts", 0) >= configurable.max_search_depth:
+    if state.get("research_iterations", 1) > configurable.max_search_depth:
         return Command(goto=END)
     reflection_model_config = {
         "model": configurable.reflection_model,
         "max_tokens": configurable.reflection_model_max_tokens,
+        "tags": ["langsmith:nostream"]
     }
     reflection_model = configurable_model.with_config(reflection_model_config).with_structured_output(ReflectionResult).with_retry(stop_after_attempt=configurable.max_structured_output_retries)
+    findings = "\n".join(notes)
     reflection_prompt = upfront_model_provider_reflection_system_prompt.format(
         messages=get_buffer_string(messages),
-        findings="\n".join(notes),
+        findings=findings,
     )
     try:
         response = await reflection_model.ainvoke([HumanMessage(content=reflection_prompt)])
@@ -165,7 +132,7 @@ async def reflection(state: UpfrontResearcherState, config: RunnableConfig) -> C
             focus_areas = "\n".join([f"- {query}" for query in response["suggested_queries"]])
             research_messages = [
                 *state.get("messages", []),
-                AIMessage(content=f"Current research status:\n\n{notes}"),
+                AIMessage(content=f"Current research status:\n\n{findings}"),
                 HumanMessage(content=gap_context_prompt.format(
                     knowledge_gaps=knowledge_gaps,
                     focus_areas=focus_areas,
@@ -175,16 +142,16 @@ async def reflection(state: UpfrontResearcherState, config: RunnableConfig) -> C
             return Command(
                 goto="research",
                 update={
-                    "research_messages": research_messages,
+                    "research_messages": research_messages
                 }
             )
     except Exception as e:
         print(f"Error in reflection phase: {e}")
         # TODO: Figure out a better way to loop here.
-        return Command(goto="model_provider_reflection", update={"search_attempts": state.get("search_attempts", 0) + 1})
+        return Command(goto="model_provider_reflection", update={"research_iterations": state.get("research_iterations", 1) + 1})
 
 
-upfront_researcher_builder = StateGraph(UpfrontResearcherState)
+upfront_researcher_builder = StateGraph(ResearchUnitState)
 upfront_researcher_builder.add_node("research", research)
 upfront_researcher_builder.add_node("reflection", reflection)
 upfront_researcher_builder.add_edge(START, "research")
@@ -200,6 +167,7 @@ async def generate_outline(state: GeneralResearcherState, config: RunnableConfig
     planner_model_config = {
         "model": configurable.outliner_model,
         "max_tokens": configurable.outliner_model_max_tokens,
+        "tags": ["langsmith:nostream"]
     }
     planner_model = configurable_model.with_config(planner_model_config).with_structured_output(Outline).with_retry(stop_after_attempt=configurable.max_structured_output_retries)
     try:
@@ -263,7 +231,7 @@ async def final_report_generation(state: GeneralResearcherState, config: Runnabl
             timeout=120.0
         )
         print("Final report successfully generated")
-        return {"final_report": final_report}
+        return {"final_report": final_report, "messages": [final_report]}
     except Exception as e:
         print(f"Error generating final report: {e}")
         return {"final_report": "Error generating final report"}
