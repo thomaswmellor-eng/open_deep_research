@@ -12,11 +12,12 @@ import json
 import logging
 from dataclasses import dataclass
 from typing import List, Dict, Any, Optional
-from langsmith import traceable
 
 import anthropic
 from anthropic.types import Message
 
+# ADD to tracing and LangGraph  
+from langsmith import traceable
 from langgraph.func import entrypoint
 
 logger = logging.getLogger(__name__)
@@ -78,6 +79,7 @@ class DeepResearchAgent:
         self.collected_sources: List[SearchSource] = []
         self.research_history: List[str] = []
         
+    # ADD
     @traceable(run_type="llm",
                name="Overall Research",
                project_name="Anthropic Deep Researcher")
@@ -163,6 +165,7 @@ class DeepResearchAgent:
         user_messages = [msg["content"] for msg in messages if msg["role"] == "user"]
         return user_messages[-1] if user_messages else "Unknown topic"
     
+    # ADD
     @traceable(run_type="llm",
                name="Web Search",
                project_name="Anthropic Deep Researcher")
@@ -281,6 +284,7 @@ Focus on areas that need deeper investigation. Use targeted searches to find mis
         
         logger.info(f"Source collection for iteration {iteration} - found {sources_found} sources")
     
+    # ADD
     @traceable(run_type="llm",
                name="Reflection",
                project_name="Anthropic Deep Researcher")
@@ -405,6 +409,7 @@ Reasoning: {reflection.reasoning}
         
         return documents
     
+    # ADD   
     @traceable(run_type="llm",
                name="Final Report",
                project_name="Anthropic Deep Researcher")
@@ -500,7 +505,9 @@ def create_research_agent(config: Optional[ResearchConfig] = None) -> DeepResear
 from langchain_core.runnables import RunnableConfig
 from open_deep_research.non_langgraph.configuration import Configuration
 from langgraph.graph import MessagesState
+from langchain_core.messages import convert_to_openai_messages
 
+# ADD
 @entrypoint(config_schema=Configuration)
 def wrap_agent_with_langgraph(input: MessagesState, config: RunnableConfig) -> dict:
     """
@@ -536,7 +543,21 @@ def wrap_agent_with_langgraph(input: MessagesState, config: RunnableConfig) -> d
 
     # Create and run research agent
     agent = create_research_agent(research_config)
-    result = agent.research(input['messages'])
+
+    print("Here are the messages!")
+    print(input['messages'])
+
+    print("Here is the config!")
+    print(research_config)
+
+    #messages = [
+    #    {"role": "user", "content": input['messages'][0]['content']}
+    #]
+
+    # LangChain Message format to OpenAI
+    openai_message_format = convert_to_openai_messages(input['messages'])
+
+    result = agent.research(openai_message_format)
 
     # Return structured result for LangGraph Studio
     return {
