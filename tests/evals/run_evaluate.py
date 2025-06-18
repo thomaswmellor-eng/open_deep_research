@@ -96,17 +96,17 @@ async def generate_report_general_researcher(
             "thread_id": str(uuid.uuid4()),
         }
     }
-    config["configurable"]["search_api"] = "tavily"
+    config["configurable"]["search_api"] = "openai"
     config["configurable"]["process_search_results"] = process_search_results
-    config["configurable"]["summarization_model"] = "anthropic:claude-3-5-haiku-latest"
+    config["configurable"]["summarization_model"] = "openai:gpt-4.1-nano"
     config["configurable"]["summarization_model_max_tokens"] = 10000
-    config["configurable"]["research_model"] = "anthropic:claude-3-7-sonnet-latest"
+    config["configurable"]["research_model"] = "openai:gpt-4.1"
     config["configurable"]["research_model_max_tokens"] = 10000
-    config["configurable"]["reflection_model"] = "anthropic:claude-3-7-sonnet-latest"
+    config["configurable"]["reflection_model"] = "openai:gpt-4.1"
     config["configurable"]["reflection_model_max_tokens"] = 10000
     config["configurable"]["outliner_model"] = "openai:gpt-4.1"
     config["configurable"]["outliner_model_max_tokens"] = 10000
-    config["configurable"]["final_report_model"] = "anthropic:claude-3-7-sonnet-latest"
+    config["configurable"]["final_report_model"] = "openai:gpt-4.1"
     config["configurable"]["final_report_model_max_tokens"] = 10000
     config["configurable"]["max_search_depth"] = max_search_depth
     config["configurable"]["max_structured_output_retries"] = max_structured_output_retries
@@ -126,10 +126,10 @@ async def target(inputs: dict):
 async def main():
     return await client.aevaluate(
         target,
-        data=client.list_examples(dataset_name=dataset_name, splits=["split1"]),
+        data=client.list_examples(dataset_name=dataset_name, splits=["enumeration"]),
         evaluators=evaluators,
         # experiment_prefix=f"ODR: GR - SM:{summarization_model} WM:{writer_model}  #",
-        experiment_prefix=f"GR - Tavily Search, Anthropic Gen, One Shot Mode  #",
+        experiment_prefix=f"GR2.0 - OpenAI Search, One Shot Mode  #",
         max_concurrency=1,
     )
 

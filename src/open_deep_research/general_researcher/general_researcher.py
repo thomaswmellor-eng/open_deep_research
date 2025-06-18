@@ -60,7 +60,7 @@ async def research(state: ResearchUnitState, config: RunnableConfig) -> Command[
     mcp_tools = await load_mcp_tools(config, existing_tool_names)
     tools.extend(mcp_tools)
     tools_by_name = {tool.name if hasattr(tool, "name") else tool.get("name", "web_search"):tool for tool in tools}
-    research_model = configurable_model.with_config(research_model_config).bind_tools(tools)
+    research_model = configurable_model.with_config(research_model_config).bind_tools(tools).with_retry(stop_after_attempt=configurable.max_structured_output_retries)
     tool_calling_iterations = 0
     system_prompt = initial_upfront_model_provider_web_search_system_prompt.format(
         mcp_prompt=configurable.mcp_prompt or ""
@@ -228,7 +228,7 @@ async def final_report_generation(state: GeneralResearcherState, config: Runnabl
     try:
         final_report = await asyncio.wait_for(
             configurable_model.with_config(writer_model_config).ainvoke([HumanMessage(content=final_report_prompt)]), 
-            timeout=120.0
+            timeout=300.0
         )
         print("Final report successfully generated")
         return {"final_report": final_report, "messages": [final_report]}
