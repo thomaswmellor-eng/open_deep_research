@@ -154,6 +154,7 @@ async def _load_mcp_tools(
 
         filtered_mcp_tools.append(tool)
 
+    print(filtered_mcp_tools)
     return filtered_mcp_tools
 
 

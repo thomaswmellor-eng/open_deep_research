@@ -10,5 +10,8 @@
     "env": "./.env",
     "dependencies": [
       "."
-    ]
+    ],
+    "auth": {
+      "path": "./src/security/auth.py:auth"
+    }
   }

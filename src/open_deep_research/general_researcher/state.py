@@ -6,13 +6,9 @@ from langgraph.graph import MessagesState
 from langchain_core.messages import MessageLikeRepresentation
 
 # Structured output
-
-class SearchQuery(BaseModel):
-    search_query: str = Field(None, description="Query for web search.")
-
-class Queries(BaseModel):
-    queries: List[SearchQuery] = Field(
-        description="List of search queries.",
+class ClarifyWithUser(BaseModel):
+    question: str = Field(
+        description="A question to ask the user to clarify the report scope",
     )
 
 class Section(BaseModel):
@@ -31,8 +27,7 @@ class Outline(BaseModel):
         description="List of sections for the report.",
     )
 
-@dataclass
-class SearchSource:
+class SearchSource(BaseModel):
     """Represents a source found during web search."""
     url: str
     title: str
@@ -40,16 +35,22 @@ class SearchSource:
     search_query: str
     iteration: int
 
-@dataclass 
-class ReflectionResult:
+class ReflectionResult(BaseModel):
     """Result of reflection phase analyzing research completeness."""
-    is_satisfied: bool
-    knowledge_gaps: List[str]
-    suggested_queries: List[str] 
-    reasoning: str
+    is_satisfied: bool = Field(
+        description="Whether the research is complete enough to move on to the next phase.",
+    )
+    knowledge_gaps: List[str] = Field(
+        description="List of knowledge gaps that need to be filled in with further research. This can be empty if is_satisfied is true.",
+    )
+    suggested_queries: List[str] = Field(
+        description="List of suggested queries to search for to fill the knowledge gaps. This can be empty if is_satisfied is true.s",
+    )
+    reasoning: str = Field(
+        description="Reasoning for the reflection result.",
+    )
 
 # State Definitions
-
 class ResearchUnitState(MessagesState):
     notes: Annotated[Optional[list[str]], operator.add]
     research_iterations: Optional[int] = 0
@@ -66,21 +67,6 @@ class GeneralResearcherState(MessagesState):
     final_report: str
     notes: Annotated[list[str], operator.add]
     collected_sources: Optional[list[SearchSource]]
-    feedback_on_outline: list[str]
-    historical_queries: Annotated[list[str], operator.add]
-    current_queries: list[str]
     search_attempts: int = 0
     outline: list[Section]
     completed_sections: Annotated[list, operator.add]
-
-class SectionState(MessagesState):
-    section: Section
-    notes: list[str]
-    feedback_on_section: str
-    search_iterations: int
-    section_search_queries: list[SearchQuery]
-    section_notes: list[str]
-    completed_sections: list[Section]
-
-class SectionOutputState(MessagesState):
-    completed_sections: list[Section]

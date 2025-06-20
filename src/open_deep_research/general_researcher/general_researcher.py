@@ -1,9 +1,8 @@
 from langchain.chat_models import init_chat_model
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage, ToolMessage, get_buffer_string
 from langchain_core.runnables import RunnableConfig
-from langgraph.constants import Send
 from langgraph.graph import START, END, StateGraph
-from langgraph.types import interrupt, Command
+from langgraph.types import Command
 import asyncio
 from typing import Literal
 from open_deep_research.general_researcher.configuration import (
@@ -16,7 +15,8 @@ from open_deep_research.general_researcher.state import (
     GeneralResearcherStateInput,
     GeneralResearcherStateOutput,
     Outline,
-    ReflectionResult
+    ReflectionResult,
+    ClarifyWithUser
 )
 from open_deep_research.utils import (
     get_config_value,
@@ -27,20 +27,43 @@ from open_deep_research.general_researcher.prompts import (
     follow_up_upfront_model_provider_web_search_system_prompt,
     upfront_model_provider_reflection_system_prompt,
     gap_context_prompt,
-    final_report_generation_prompt
+    final_report_generation_prompt,
+    clarify_with_user_instructions
 )
 from open_deep_research.general_researcher.utils import (
     get_search_tool,
     load_mcp_tools,
     extract_notes_from_research_messages,
+    get_conversation_history,
 )
 
+# Initialize a configurable model that we will use throughout the agent
 configurable_model = init_chat_model(
     max_tokens=10000,
     configurable_fields=("model", "max_tokens"),
 )
 
-# Upfront Research
+def initial_router(state: GeneralResearcherState, config: RunnableConfig):
+    configurable = WorkflowConfiguration.from_runnable_config(config)
+    if configurable.clarify_with_user and not len(state.get("messages", [])) >= 3:
+        return "clarify_with_user"
+    else:
+        return "research"
+
+
+async def clarify_with_user(state: GeneralResearcherState, config: RunnableConfig):
+    messages = state["messages"]
+    configurable = WorkflowConfiguration.from_runnable_config(config)
+    model_config = {
+        "model": configurable.final_report_model
+    }
+    model = configurable_model.with_config(model_config).with_structured_output(ClarifyWithUser).with_retry(stop_after_attempt=configurable.max_structured_output_retries)
+    response = await model.ainvoke([HumanMessage(content=clarify_with_user_instructions.format(messages=get_buffer_string(messages)))])
+    return {
+        "messages": [AIMessage(content=response.question)]
+    }
+    
+    
 async def research(state: ResearchUnitState, config: RunnableConfig) -> Command[Literal["reflection", "__end__"]]:
     configurable = WorkflowConfiguration.from_runnable_config(config)
     research_model_config = {
@@ -52,10 +75,10 @@ async def research(state: ResearchUnitState, config: RunnableConfig) -> Command[
     research_messages = state.get("research_messages", [])
     num_initial_messages = len(research_messages)
     if len(research_messages) == 0:
-        research_messages = state.get("messages", []).copy()
+        research_messages = [HumanMessage(content=get_conversation_history(state.get("messages", [])))]
     research_iterations = state.get("research_iterations", 1)
     tools = []
-    tools.extend(await get_search_tool(search_api))
+    tools.extend(await get_search_tool(search_api)) # TODO: UNDO
     existing_tool_names = {tool.name if hasattr(tool, "name") else tool.get("name", "web_search") for tool in tools}
     mcp_tools = await load_mcp_tools(config, existing_tool_names)
     tools.extend(mcp_tools)
@@ -64,7 +87,7 @@ async def research(state: ResearchUnitState, config: RunnableConfig) -> Command[
     tool_calling_iterations = 0
     system_prompt = initial_upfront_model_provider_web_search_system_prompt.format(
         mcp_prompt=configurable.mcp_prompt or ""
-    ) if research_iterations == 0 else follow_up_upfront_model_provider_web_search_system_prompt.format(
+    ) if research_iterations == 1 else follow_up_upfront_model_provider_web_search_system_prompt.format(
         mcp_prompt=configurable.mcp_prompt or ""
     )
     # ReAct Tool Calling Loop
@@ -125,18 +148,18 @@ async def reflection(state: ResearchUnitState, config: RunnableConfig) -> Comman
     )
     try:
         response = await reflection_model.ainvoke([HumanMessage(content=reflection_prompt)])
-        if response["is_satisfied"]:
+        if response.is_satisfied:
             return Command(goto=END)
         else:
-            knowledge_gaps = "\n".join([f"- {gap}" for gap in response["knowledge_gaps"]])
-            focus_areas = "\n".join([f"- {query}" for query in response["suggested_queries"]])
+            knowledge_gaps = "\n".join([f"- {gap}" for gap in response.knowledge_gaps])
+            focus_areas = "\n".join([f"- {query}" for query in response.suggested_queries])
+            conversation_history = get_conversation_history(state.get("messages", []))
             research_messages = [
-                *state.get("messages", []),
-                AIMessage(content=f"Current research status:\n\n{findings}"),
+                AIMessage(content=f"{conversation_history}\n\nCurrent research status:\n\n{findings}"),
                 HumanMessage(content=gap_context_prompt.format(
                     knowledge_gaps=knowledge_gaps,
                     focus_areas=focus_areas,
-                    reasoning=response["reasoning"]
+                    reasoning=response.reasoning
                 ))
             ]
             return Command(
@@ -147,7 +170,6 @@ async def reflection(state: ResearchUnitState, config: RunnableConfig) -> Comman
             )
     except Exception as e:
         print(f"Error in reflection phase: {e}")
-        # TODO: Figure out a better way to loop here.
         return Command(goto="model_provider_reflection", update={"research_iterations": state.get("research_iterations", 1) + 1})
 
 
@@ -158,11 +180,9 @@ upfront_researcher_builder.add_edge(START, "research")
 upfront_researcher = upfront_researcher_builder.compile()
 
 
-# Outline Generation after Upfront Research
-async def generate_outline(state: GeneralResearcherState, config: RunnableConfig) -> Command[Literal["human_feedback", "final_report_generation"]]:
+async def generate_outline(state: GeneralResearcherState, config: RunnableConfig):
     messages = state["messages"]
     notes = state.get("notes", [])
-    feedback_on_outline = state.get("feedback_on_outline", [])
     configurable = WorkflowConfiguration.from_runnable_config(config)
     planner_model_config = {
         "model": configurable.outliner_model,
@@ -177,36 +197,16 @@ async def generate_outline(state: GeneralResearcherState, config: RunnableConfig
                     content=response_structure_instructions.format(
                         messages=get_buffer_string(messages),
                         context="\n".join(notes),
-                        feedback="\n".join(feedback_on_outline)))
+                    ))
                 ]
             ),
             timeout=45.0
         )
-        if configurable.outline_user_approval:
-            return Command(goto="human_feedback", update={"outline": outline_results.outline})
-        else:
-            return Command(goto="final_report_generation", update={"outline": outline_results.outline})
+        return {
+            "outline": outline_results.outline
+        }
     except Exception as e:
         print(f"Error generating outline: {e}")
-
-
-async def human_feedback(state: GeneralResearcherState, config: RunnableConfig) -> Command[Literal["generate_outline", "final_report_generation"]]:
-    outline = state["outline"]
-    outline_str = "\n\n".join(
-        f"Section: {section.name}\n"
-        f"Description: {section.description}\n"
-        for section in outline
-    )
-    interrupt_message = f"""Please provide feedback on the following outline. 
-                        \n\n{outline_str}\n
-                        \nDoes the report plan meet your needs?\nPass 'true' to approve the report plan.\nOr, provide feedback to regenerate the report plan:"""
-    feedback = interrupt(interrupt_message)
-    if (isinstance(feedback, bool) and feedback is True) or (isinstance(feedback, str) and feedback.lower() == "true"):
-        return Command(goto="final_report_generation", update={"outline": outline})
-    elif isinstance(feedback, str):
-        return Command(goto="generate_outline", update={"feedback_on_outline": [feedback]})
-    else:
-        raise TypeError(f"Interrupt value of type {type(feedback)} is not supported.")
 
 
 async def final_report_generation(state: GeneralResearcherState, config: RunnableConfig):
@@ -237,14 +237,18 @@ async def final_report_generation(state: GeneralResearcherState, config: Runnabl
         return {"final_report": "Error generating final report"}
 
 
-
 general_researcher_builder = StateGraph(GeneralResearcherState, input=GeneralResearcherStateInput, output=GeneralResearcherStateOutput, config_schema=WorkflowConfiguration)
 general_researcher_builder.add_node("upfront_researcher", upfront_researcher)
 general_researcher_builder.add_node("generate_outline", generate_outline)
-general_researcher_builder.add_node("human_feedback", human_feedback)
 general_researcher_builder.add_node("final_report_generation", final_report_generation)
-general_researcher_builder.add_edge(START, "upfront_researcher")
+general_researcher_builder.add_node("clarify_with_user", clarify_with_user)
+general_researcher_builder.add_conditional_edges(START, initial_router, {
+    "research": "upfront_researcher",
+    "clarify_with_user": "clarify_with_user"
+})
+general_researcher_builder.add_edge("clarify_with_user", END)
 general_researcher_builder.add_edge("upfront_researcher", "generate_outline")
+general_researcher_builder.add_edge("generate_outline", "final_report_generation")
 general_researcher_builder.add_edge("final_report_generation", END)
 
 general_researcher = general_researcher_builder.compile()

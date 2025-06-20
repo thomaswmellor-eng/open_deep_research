@@ -1,6 +1,18 @@
+clarify_with_user_instructions="""
+These are the messages that have been exchanged so far from the user asking for the report:
+<Messages>
+{messages}
+</Messages>
+
+Return ONE targeted question to clarify report scope.
+If there are acronyms, abbreviations, or unknown terms, ask the user to clarify.
+Focus on: technical depth, target audience, specific aspects to emphasize
+Examples: "Should I focus on technical implementation details or high-level business benefits?" 
+"""
+
 initial_upfront_model_provider_web_search_system_prompt = """You are a research assistant conducting deep research. Use the tools provided to thoroughly research what the user is asking about.
 
-You can use websearch, or any other tool provided to you.
+You can use general websearch, or any other tool provided to you. Select the BEST tool for the job, this may or may not be general websearch.
 {mcp_prompt}
 
 Focus on:
@@ -13,7 +25,7 @@ Use multiple searches as needed to cover the topic thoroughly."""
 
 follow_up_upfront_model_provider_web_search_system_prompt = """You are continuing deep research based on previous findings. Use the tools provided to fill knowledge gaps identified in the reflection.
 
-You can use websearch, or any other tool provided to you.
+You can use general websearch, or any other tool provided to you. Select the BEST tool for the job, this may or may not be general websearch.
 {mcp_prompt}
 
 Focus on areas that need deeper investigation. Use targeted searches to find missing information and perspectives.
@@ -25,6 +37,9 @@ Original Messages asking about the Topic: {messages}
 
 Current Research Findings:
 {findings}
+
+Make sure to also reason about the quality of the research and the sources that were found. We want to feel confident that the sources are high quality, and only want to give the user
+information that we are confident in. Keep that in mind while evaluating the current state of the research.
 
 Please evaluate:
 1. Are the findings comprehensive enough for a detailed report to answer the question(s) in the original messages?
@@ -113,11 +128,6 @@ Integration guidelines:
 
 Before submitting, review your structure to ensure it has no redundant sections and follows a logical flow that answers the user's question in the best way possible.
 </Task>
-
-<Feedback>
-Here is feedback on the report structure from review (if any):
-{feedback}
-</Feedback>
 
 Return your outline in the following format as a list of sections!
 <Format>
@@ -312,3 +322,73 @@ Format the report in clear markdown with proper structure and include source ref
   [1] Source Title: URL
   [2] Source Title: URL
 </Citation Rules>"""
+
+
+SUMMARIZATION_PROMPT = """You are tasked with summarizing the raw content of a webpage retrieved from a web search. Your goal is to create a concise summary that preserves the most important information from the original web page. This summary will be used by a downstream research agent, so it's crucial to maintain the key details without losing essential information.
+
+Here is the raw content of the webpage:
+
+<webpage_content>
+{webpage_content}
+</webpage_content>
+
+Please follow these guidelines to create your summary:
+
+1. Identify and preserve the main topic or purpose of the webpage.
+2. Retain key facts, statistics, and data points that are central to the content's message.
+3. Keep important quotes from credible sources or experts.
+4. Maintain the chronological order of events if the content is time-sensitive or historical.
+5. Preserve any lists or step-by-step instructions if present.
+6. Include relevant dates, names, and locations that are crucial to understanding the content.
+7. Summarize lengthy explanations while keeping the core message intact.
+
+When handling different types of content:
+
+- For news articles: Focus on the who, what, when, where, why, and how.
+- For scientific content: Preserve methodology, results, and conclusions.
+- For opinion pieces: Maintain the main arguments and supporting points.
+- For product pages: Keep key features, specifications, and unique selling points.
+
+Your summary should be significantly shorter than the original content but comprehensive enough to stand alone as a source of information. Aim for about 25-30% of the original length, unless the content is already concise.
+
+Present your summary in the following format:
+
+```
+{{
+   "summary": "Your concise summary here, structured with appropriate paragraphs or bullet points as needed",
+   "key_excerpts": [
+     "First important quote or excerpt",
+     "Second important quote or excerpt",
+     "Third important quote or excerpt",
+     ...Add more excerpts as needed, up to a maximum of 5
+   ]
+}}
+```
+
+Here are two examples of good summaries:
+
+Example 1 (for a news article):
+```json
+{{
+   "summary": "On July 15, 2023, NASA successfully launched the Artemis II mission from Kennedy Space Center. This marks the first crewed mission to the Moon since Apollo 17 in 1972. The four-person crew, led by Commander Jane Smith, will orbit the Moon for 10 days before returning to Earth. This mission is a crucial step in NASA's plans to establish a permanent human presence on the Moon by 2030.",
+   "key_excerpts": [
+     "Artemis II represents a new era in space exploration," said NASA Administrator John Doe.
+     "The mission will test critical systems for future long-duration stays on the Moon," explained Lead Engineer Sarah Johnson.
+     "We're not just going back to the Moon, we're going forward to the Moon," Commander Jane Smith stated during the pre-launch press conference.
+   ]
+}}
+```
+
+Example 2 (for a scientific article):
+```json
+{{
+   "summary": "A new study published in Nature Climate Change reveals that global sea levels are rising faster than previously thought. Researchers analyzed satellite data from 1993 to 2022 and found that the rate of sea-level rise has accelerated by 0.08 mm/year² over the past three decades. This acceleration is primarily attributed to melting ice sheets in Greenland and Antarctica. The study projects that if current trends continue, global sea levels could rise by up to 2 meters by 2100, posing significant risks to coastal communities worldwide.",
+   "key_excerpts": [
+      "Our findings indicate a clear acceleration in sea-level rise, which has significant implications for coastal planning and adaptation strategies," lead author Dr. Emily Brown stated.
+      "The rate of ice sheet melt in Greenland and Antarctica has tripled since the 1990s," the study reports.
+      "Without immediate and substantial reductions in greenhouse gas emissions, we are looking at potentially catastrophic sea-level rise by the end of this century," warned co-author Professor Michael Green.
+   ]
+}}
+```
+
+Remember, your goal is to create a summary that can be easily understood and utilized by a downstream research agent while preserving the most critical information from the original webpage."""
