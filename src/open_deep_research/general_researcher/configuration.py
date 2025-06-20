@@ -80,7 +80,7 @@ class WorkflowConfiguration(BaseModel):
             "x_oap_ui_config": {
                 "type": "select",
                 "default": "tavily",
-                "description": "Search API to use for research",
+                "description": "Search API to use for research. NOTE: Make sure your Researcher Model supports the selected search API.",
                 "options": [
                     {"label": "Tavily", "value": SearchAPI.TAVILY.value},
                     {"label": "OpenAI Native Web Search", "value": SearchAPI.OPENAI.value},
@@ -116,7 +116,7 @@ class WorkflowConfiguration(BaseModel):
         default="anthropic:claude-3-5-haiku-latest",
         metadata={
             "x_oap_ui_config": {
-                "type": "string",
+                "type": "text",
                 "default": "anthropic:claude-3-5-haiku-latest",
                 "description": "Model for summarizing research results"
             }
@@ -133,11 +133,11 @@ class WorkflowConfiguration(BaseModel):
         }
     )
     research_model: str = Field(
-        default="anthropic:claude-3-7-sonnet-latest",
+        default="anthropic:claude-sonnet-4-20250514",
         metadata={
             "x_oap_ui_config": {
-                "type": "string",
-                "default": "anthropic:claude-3-7-sonnet-latest",
+                "type": "text",
+                "default": "anthropic:claude-sonnet-4-20250514",
                 "description": "Model for conducting research"
             }
         }
@@ -153,11 +153,11 @@ class WorkflowConfiguration(BaseModel):
         }
     )
     reflection_model: str = Field(
-        default="anthropic:claude-3-7-sonnet-latest",
+        default="anthropic:claude-sonnet-4-20250514",
         metadata={
             "x_oap_ui_config": {
-                "type": "string",
-                "default": "anthropic:claude-3-7-sonnet-latest",
+                "type": "text",
+                "default": "anthropic:claude-sonnet-4-20250514",
                 "description": "Model for reflecting on the current state of the research"
             }
         }
@@ -193,11 +193,11 @@ class WorkflowConfiguration(BaseModel):
         }
     )
     final_report_model: str = Field(
-        default="anthropic:claude-3-7-sonnet-latest",
+        default="anthropic:claude-sonnet-4-20250514",
         metadata={
             "x_oap_ui_config": {
-                "type": "string",
-                "default": "anthropic:claude-3-7-sonnet-latest",
+                "type": "text",
+                "default": "anthropic:claude-sonnet-4-20250514",
                 "description": "Model for final report tasks"
             }
         }
@@ -220,7 +220,6 @@ class WorkflowConfiguration(BaseModel):
             "x_oap_ui_config": {
                 "type": "mcp",
                 "description": "MCP server configuration"
-                # TODO: Potentially add some default tools for folks to use
             }
         }
     )
@@ -229,7 +228,7 @@ class WorkflowConfiguration(BaseModel):
         optional=True,
         metadata={
             "x_oap_ui_config": {
-                "type": "string",
+                "type": "text",
                 "description": "Any additional instructions to pass along to the Agent regarding the MCP tools that are available to it."
             }
         }
