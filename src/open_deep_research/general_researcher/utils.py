@@ -476,6 +476,9 @@ def handle_ai_message_response_types(message, search_api: SearchAPI, iteration: 
                 observation += f"{tool_name}: {json.dumps(tool_args)}\n"
     else:
         observation = message.content
+    # If observation is not a string, convert it to a string
+    if not isinstance(observation, str):
+        observation = str(observation)
     return observation, collected_sources
 
 
