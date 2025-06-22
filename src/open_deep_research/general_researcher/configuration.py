@@ -176,7 +176,7 @@ class WorkflowConfiguration(BaseModel):
         default="openai:gpt-4.1",
         metadata={
             "x_oap_ui_config": {
-                "type": "string",
+                "type": "text",
                 "default": "openai:gpt-4.1",
                 "description": "Model for outlining the response"
             }
