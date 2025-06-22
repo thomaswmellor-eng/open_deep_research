@@ -67,7 +67,7 @@ class WorkflowConfiguration(BaseModel):
         default=False,
         metadata={
             "x_oap_ui_config": {
-                "type": "checkbox",
+                "type": "boolean",
                 "default": False,
                 "description": "Whether to ask the user a clarifying question before starting research"
             }

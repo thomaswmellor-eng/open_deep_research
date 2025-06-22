@@ -326,13 +326,15 @@ async def load_mcp_tools(
         return []
     tool_names_to_find = set(configurable.mcp_config.tools)
     tools = []
+    server_url = configurable.mcp_config.url.rstrip("/") + "/mcp"
     mcp_server_config = {
         "server_1":{
-            "url": configurable.mcp_config.url,
+            "url": server_url,
             "headers": {"Authorization": f"Bearer {mcp_tokens['access_token']}"} if mcp_tokens else None,
             "transport": "streamable_http"
         }
     }
+    print(mcp_server_config)
     client = MultiServerMCPClient(mcp_server_config)
     mcp_tools = await client.get_tools()
     for tool in mcp_tools:
