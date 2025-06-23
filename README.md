@@ -1,6 +1,6 @@
 # Open Deep Research
 
-Open Deep Research is an experimental, fully open-source research assistant that automates deep research and produces comprehensive reports on any topic. It features two implementations - a [workflow](https://langchain-ai.github.io/langgraph/tutorials/workflows/) and a multi-agent architecture - each with distinct advantages. You can customize the entire research and writing process with specific models, prompts, report structure, and search tools.
+Open Deep Research is an experimental, fully open-source research assistant that automates deep research and produces comprehensive reports on any topic. It features three implementations - a [workflow](https://langchain-ai.github.io/langgraph/tutorials/workflows/), a multi-agent architecture, and an updated workflow with MCP and native model provider web search support. You can customize the entire research and writing process with specific models, prompts, and tools.
 
 #### Workflow
 
@@ -9,6 +9,10 @@ Open Deep Research is an experimental, fully open-source research assistant that
 ####  Multi-agent
 
 ![multi-agent-researcher](https://github.com/user-attachments/assets/3c734c3c-57aa-4bc0-85dd-74e2ec2c0880)
+
+#### MCP Workflow
+
+![mcp-workflow-overview]()
 
 ### 🚀 Quickstart
 
@@ -53,14 +57,6 @@ Use this to open the Studio UI:
 - 📚 API Docs: http://127.0.0.1:2024/docs
 ```
 
-#### Multi-agent
-
-(1) Chat with the agent about your topic of interest, and it will initiate report generation:
-
-<img width="1326" alt="input" src="https://github.com/user-attachments/assets/dc8f59dd-14b3-4a62-ac18-d2f99c8bbe83" />
-
-(2) The report is produced as markdown.
-
 #### Workflow
 
 (1) Provide a `Topic`:
@@ -85,6 +81,24 @@ The report is produced as markdown.
 
 <img width="1326" alt="report" src="https://github.com/user-attachments/assets/92d9f7b7-3aea-4025-be99-7fb0d4b47289" />
 
+#### Multi-agent
+
+(1) Chat with the agent about your topic of interest, and it will initiate report generation:
+
+<img width="1326" alt="input" src="https://github.com/user-attachments/assets/dc8f59dd-14b3-4a62-ac18-d2f99c8bbe83" />
+
+(2) The report is produced as markdown.
+
+#### MCP Workflow
+
+(1) Configure the agent with the search tool of your choice. By default, the agent will use Tavily. You can configure it to use OpenAI or Anthropic native web search tools as well, or configure a custom MCP server and tools to use as well.
+
+(2) Chat with the agent about your topic of interest, and it will initiate report generation.
+
+(3) The agent will conduct research up front, iteratively, and once it is satisfied with the research, will generate a report plan.
+
+(4) The agent will then generate the report in one-shot, provided the research it conducted, the report plan it generated, and the sources it collected.
+
 ### Search Tools
 
 Available search tools:
@@ -98,6 +112,8 @@ Available search tools:
 * [DuckDuckGo API](https://duckduckgo.com/) - General web search
 * [Google Search API/Scrapper](https://google.com/) - Create custom search engine [here](https://programmablesearchengine.google.com/controlpanel/all) and get API key [here](https://developers.google.com/custom-search/v1/introduction)
 * [Microsoft Azure AI Search](https://azure.microsoft.com/en-us/products/ai-services/ai-search) - Cloud based vector database solution 
+
+NOTE: Only Tavily is provided by default for the MCP Workflow - the main usage pattern for the MCP Workflow implementation is connecting MCP servers of your choice. 
 
 Open Deep Research is compatible with many different LLMs: 
 
@@ -114,15 +130,17 @@ See [src/open_deep_research/graph.ipynb](src/open_deep_research/graph.ipynb) and
 
 ## Open Deep Research Implementations
 
-Open Deep Research features two distinct implementation approaches, each with its own strengths:
+Open Deep Research features three distinct implementation approaches, each with its own strengths:
 
 ## 1. Graph-based Workflow Implementation (`src/open_deep_research/graph.py`)
+
+![open-deep-research-overview](https://github.com/user-attachments/assets/a171660d-b735-4587-ab2f-cd771f773756)
 
 The graph-based implementation follows a structured plan-and-execute workflow:
 
 - **Planning Phase**: Uses a planner model to analyze the topic and generate a structured report plan
 - **Human-in-the-Loop**: Allows for human feedback and approval of the report plan before proceeding
-- **Sequential Research Process**: Creates sections one by one with reflection between search iterations
+- **Parallel Research Process**: Creates sections in parallel with reflection between search iterations
 - **Section-Specific Research**: Each section has dedicated search queries and content retrieval
 - **Supports Multiple Search Tools**: Works with all search providers (Tavily, Perplexity, Exa, ArXiv, PubMed, Linkup, etc.)
 
@@ -142,6 +160,8 @@ You can customize the research assistant workflow through several parameters:
 - `search_api`: API to use for web searches (default: "tavily", options include "perplexity", "exa", "arxiv", "pubmed", "linkup")
 
 ## 2. Multi-Agent Implementation (`src/open_deep_research/multi_agent.py`)
+
+![multi-agent-researcher](https://github.com/user-attachments/assets/3c734c3c-57aa-4bc0-85dd-74e2ec2c0880)
 
 The multi-agent implementation uses a supervisor-researcher architecture:
 
@@ -164,13 +184,11 @@ You can customize the multi-agent implementation through several parameters:
 - `mcp_prompt`: Additional instructions for using MCP tools (optional)
 - `mcp_tools_to_include`: Specific MCP tools to include (optional)
 
-## MCP (Model Context Protocol) Support
+### MCP (Model Context Protocol) Support
 
 The multi-agent implementation (`src/open_deep_research/multi_agent.py`) supports MCP servers to extend research capabilities beyond web search. MCP tools are available to research agents alongside or instead of traditional search tools, enabling access to local files, databases, APIs, and other data sources.
 
-**Note**: MCP support is currently only available in the multi-agent (`src/open_deep_research/multi_agent.py`) implementation, not in the workflow-based workflow implementation (`src/open_deep_research/graph.py`).
-
-### Key Features
+#### Key Features
 
 - **Tool Integration**: MCP tools are seamlessly integrated with existing search and section-writing tools
 - **Research Agent Access**: Only research agents (not supervisors) have access to MCP tools
@@ -178,14 +196,14 @@ The multi-agent implementation (`src/open_deep_research/multi_agent.py`) support
 - **Disable Default Search**: Set `search_api: "none"` to disable web search tools entirely
 - **Custom Prompts**: Add specific instructions for using MCP tools
 
-### Filesystem Server Example
+#### Filesystem Server Example
 
-#### SKK
+##### SKK
 
 ```python
 config = {
     "configurable": {
-        "search_api": "none",  # Use "tavily" or "duckduckgo" to combine with web search
+        "search_api": "none",  # Use "tavily"  combine with web search
         "mcp_server_config": {
             "filesystem": {
                 "command": "npx",
@@ -203,7 +221,7 @@ config = {
 }
 ```
 
-#### Studio
+##### Studio
 
 MCP server config: 
 ```
@@ -255,14 +273,14 @@ Resulting trace:
 
 https://smith.langchain.com/public/d871311a-f288-4885-8f70-440ab557c3cf/r
 
-### Configuration Options
+#### Configuration Options
 
 - **`mcp_server_config`**: Dictionary defining MCP server configurations (see [langchain-mcp-adapters examples](https://github.com/langchain-ai/langchain-mcp-adapters#client-1))
 - **`mcp_prompt`**: Optional instructions added to research agent prompts for using MCP tools
 - **`mcp_tools_to_include`**: Optional list of specific MCP tool names to include (if not set, all tools from all servers are included)
 - **`search_api`**: Set to `"none"` to use only MCP tools, or keep existing search APIs to combine both
 
-### Common Use Cases
+#### Common Use Cases
 
 - **Local Documentation**: Access project documentation, code files, or knowledge bases
 - **Database Queries**: Connect to databases for specific data retrieval
@@ -270,6 +288,51 @@ https://smith.langchain.com/public/d871311a-f288-4885-8f70-440ab557c3cf/r
 - **File Analysis**: Read and analyze local files during research
 
 The MCP integration allows research agents to incorporate local knowledge and external data sources into their research process, creating more comprehensive and context-aware reports.
+
+
+## 3. MCP Workflow Implementation (`src/open_deep_research/mcp_workflow/mcp_workflow.py`)
+
+The MCP Workflow implementation makes use of more up-front research before trying to write the report. It is a blend of the above two approaches, where the agent is given more flexibility to call tools, but in a more on-rails fashion within a research and reflection loop.
+
+They key emphasis of this approach is configurability. We allow you to configure the search API (Tavily, OpenAI Web Search, or Anthropic Web Search), or add custom MCP servers of your choice. The combination of the search API and any MCP tools that you configure is exposed to the LLM via tool-calling. 
+
+The core of this approach is our Research Unit. Our Research Unit consists of a research phase, followed by a reflection phase. In the research phase, we call tools in a ReAct style loop, and return the search results from the tools into our message history. This affords us the flexibility to call several MCP tools in a loop. When we are done calling MCP tools, or when a web search tool is called, we end the research phase, and proceed to Reflection. The reflection phase decides if we have conducted enough research. Our findings from the research phase are written to State as "notes", and the reflection phase reviews these notes and reasons about whether or not we have enough.
+If the reflection phase is satisfied with our research, or we have researched the maximum number of times (configured by user), we continue to the writing phase where we generate our response. If the reflection phase is not satisfied, we return to the research phase, with some recommendations (from our reflection model) about what else we should research to best answer the user's question.
+
+When writing the final report, we first generate a report plan to give our writer some structure to follow, and then we generate the report.
+
+You can customize the MCP Workflow implementation through several parameters:
+- `search_api`: API to use for web searches (default: "tavily", other options are OpenAI native web search, and Anthropic native web search)
+- `max_search_depth`: The maximum number of research -> reflection loops to iterate for, before proceeding to generate the final report.
+- `summarization_model`: The model used to summarize search results from Tavily
+- `research_model`: The model used to call tools in the Research phase. NOTE: If you are using OpenAI native web search or Anthropic native web search as your `search_api`, your `research_model` MUST support web search from that provider.
+- `reflection_model`: The model used to reflect upon the quality of our research
+- `outliner_model`: The model used to create an outline for our final response. We found that openai:gpt-4.1 works well for this structured output response.
+- `final_report_model`: The model used to write our final response from all of our research findings.
+
+### MCP (Model Context Protocol) Support
+
+The MCP Workflow supports MCP servers to extend research capabilities beyond web search. MCP tools are available to research agents alongside traditional search tools, enabling access to local files, databases, APIs, and other data sources. The MCP Workflow was build to be compatible with Open Agent Platform, which is the primary means through which we expect folks to connect to their MCP servers and expose tools to end users.
+
+#### Arcade Example
+
+##### Studio
+MCP config:
+```
+{
+  "url": "https://api.arcade.dev/v1/mcps/ms_0ujssxh0cECutqzMgbtXSGnjorm"
+  "tools": ["Search_SearchHotels", "Search_SearchOneWayFlights", "Search_SearchRoundtripFlights"]
+}
+```
+
+MCP prompt:
+```
+Use these tools to look up information about flights and hotels
+```
+##### Open Agent Platform
+Follow this [quickstart guide](https://docs.oap.langchain.com/quickstart) for Open Agent Platform to deploy the MCP Workflow on OAP!
+
+Open Agent Platform is a UI from which non-technical users can build and configure their own agents. Each user can configure the MCP Workflow Deep Researcher with different MCP tools and search APIs that are best suited to their needs and the problems that they want to solve.
 
 ## Search API Configuration
 
@@ -299,7 +362,7 @@ thread = {"configurable": {"thread_id": str(uuid.uuid4()),
 
 (1) You can use models supported with [the `init_chat_model()` API](https://python.langchain.com/docs/how_to/chat_models_universal_init/). See full list of supported integrations [here](https://python.langchain.com/api_reference/langchain/chat_models/langchain.chat_models.base.init_chat_model.html).
 
-(2) ***The workflow planner and writer models need to support structured outputs***: Check whether structured outputs are supported by the model you are using [here](https://python.langchain.com/docs/integrations/chat/).
+(2) ***The workflow, planner, refelection, outliner, and writer models need to support structured outputs***: Check whether structured outputs are supported by the model you are using [here](https://python.langchain.com/docs/integrations/chat/).
 
 (3) ***The agent models need to support tool calling:*** Ensure tool calling is well supoorted; tests have been done with Claude 3.7, o3, o3-mini, and gpt4.1. See [here](https://smith.langchain.com/public/adc5d60c-97ee-4aa0-8b2c-c776fb0d7bd6/d).
 
@@ -383,20 +446,17 @@ A comprehensive batch evaluation system designed for detailed analysis and compa
 
 #### **Evaluation Dimensions:**
 
-1. **Overall Quality** (7 weighted criteria):
-   - Research depth and source quality (20%)
-   - Analytical rigor and critical thinking (15%)
-   - Structure and organization (20%)
-   - Practical value and actionability (10%)
-   - Balance and objectivity (15%)
-   - Writing quality and clarity (10%)
-   - Professional presentation (10%)
+1. **Overall Quality** (6 individually scored criteria):
+   - Research depth and source quality
+   - Analytical rigor and critical thinking
+   - Practical value and actionability
+   - Balance and objectivity
+   - Writing quality and clarity
+   - Source quality
 
 2. **Relevance**: Section-by-section topic relevance analysis with strict criteria
 
 3. **Structure**: Assessment of logical flow, formatting, and citation practices
-
-4. **Groundedness**: Evaluation of alignment with retrieved context and sources
 
 #### **Usage:**
 ```bash

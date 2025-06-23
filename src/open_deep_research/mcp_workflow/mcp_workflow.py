@@ -5,11 +5,11 @@ from langgraph.graph import START, END, StateGraph
 from langgraph.types import Command
 import asyncio
 from typing import Literal
-from open_deep_research.general_researcher.configuration import (
+from open_deep_research.mcp_workflow.configuration import (
     WorkflowConfiguration, 
     SearchAPI, 
 )
-from open_deep_research.general_researcher.state import (
+from open_deep_research.mcp_workflow.state import (
     ResearchUnitState,
     GeneralResearcherState,
     GeneralResearcherStateInput,
@@ -21,7 +21,7 @@ from open_deep_research.general_researcher.state import (
 from open_deep_research.utils import (
     get_config_value,
 )
-from open_deep_research.general_researcher.prompts import (
+from open_deep_research.mcp_workflow.prompts import (
     response_structure_instructions, 
     initial_upfront_model_provider_web_search_system_prompt,
     follow_up_upfront_model_provider_web_search_system_prompt,
@@ -30,7 +30,7 @@ from open_deep_research.general_researcher.prompts import (
     final_report_generation_prompt,
     clarify_with_user_instructions
 )
-from open_deep_research.general_researcher.utils import (
+from open_deep_research.mcp_workflow.utils import (
     get_search_tool,
     load_mcp_tools,
     extract_notes_from_research_messages,
@@ -106,8 +106,8 @@ async def research(state: ResearchUnitState, config: RunnableConfig) -> Command[
                 web_search_called = True
             try:
                 observation = await tool.ainvoke(tool_call["args"], config)
-            except NotImplementedError:
-                observation = tool.invoke(tool_call["args"], config)
+            except Exception as e:
+                observation = f"Error calling tool {tool_call['name']}: {e}"
             research_messages.append(ToolMessage(
                 content=observation,
                 name=tool_call["name"],
@@ -237,18 +237,18 @@ async def final_report_generation(state: GeneralResearcherState, config: Runnabl
         return {"final_report": "Error generating final report"}
 
 
-general_researcher_builder = StateGraph(GeneralResearcherState, input=GeneralResearcherStateInput, output=GeneralResearcherStateOutput, config_schema=WorkflowConfiguration)
-general_researcher_builder.add_node("upfront_researcher", upfront_researcher)
-general_researcher_builder.add_node("generate_outline", generate_outline)
-general_researcher_builder.add_node("final_report_generation", final_report_generation)
-general_researcher_builder.add_node("clarify_with_user", clarify_with_user)
-general_researcher_builder.add_conditional_edges(START, initial_router, {
+mcp_workflow_builder = StateGraph(GeneralResearcherState, input=GeneralResearcherStateInput, output=GeneralResearcherStateOutput, config_schema=WorkflowConfiguration)
+mcp_workflow_builder.add_node("upfront_researcher", upfront_researcher)
+mcp_workflow_builder.add_node("generate_outline", generate_outline)
+mcp_workflow_builder.add_node("final_report_generation", final_report_generation)
+mcp_workflow_builder.add_node("clarify_with_user", clarify_with_user)
+mcp_workflow_builder.add_conditional_edges(START, initial_router, {
     "research": "upfront_researcher",
     "clarify_with_user": "clarify_with_user"
 })
-general_researcher_builder.add_edge("clarify_with_user", END)
-general_researcher_builder.add_edge("upfront_researcher", "generate_outline")
-general_researcher_builder.add_edge("generate_outline", "final_report_generation")
-general_researcher_builder.add_edge("final_report_generation", END)
+mcp_workflow_builder.add_edge("clarify_with_user", END)
+mcp_workflow_builder.add_edge("upfront_researcher", "generate_outline")
+mcp_workflow_builder.add_edge("generate_outline", "final_report_generation")
+mcp_workflow_builder.add_edge("final_report_generation", END)
 
-general_researcher = general_researcher_builder.compile()
+mcp_workflow = mcp_workflow_builder.compile()

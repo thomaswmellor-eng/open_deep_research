@@ -1,32 +1,25 @@
-from open_deep_research.general_researcher.state import SearchSource
-from open_deep_research.general_researcher.configuration import SearchAPI, WorkflowConfiguration
-from open_deep_research.utils import (
-    tavily_search,
-)
-from langchain_core.tools import BaseTool, StructuredTool, tool, ToolException
-from langchain_core.messages import AIMessage, ToolMessage
-from langchain_core.runnables import RunnableConfig
-import json
-from langchain_core.messages import MessageLikeRepresentation, get_buffer_string
-from langchain_core.runnables import RunnableConfig
-from langchain_core.tools import InjectedToolArg
-from typing import Annotated, List, Literal
+import aiohttp
 import asyncio
-from langchain.chat_models import init_chat_model
+import logging
+import warnings
+import json
+from typing import Annotated, List, Literal, Dict, Optional, Any
+from langchain_core.tools import BaseTool, StructuredTool, tool, ToolException, InjectedToolArg
+from langchain_core.messages import AIMessage, ToolMessage, MessageLikeRepresentation, get_buffer_string
+from langchain_core.runnables import RunnableConfig
 from langchain_core.language_models import BaseChatModel
+from langchain.chat_models import init_chat_model
 from langsmith import traceable
 from tavily import AsyncTavilyClient
 from langchain_anthropic import ChatAnthropic
-from src.open_deep_research.general_researcher.prompts import SUMMARIZATION_PROMPT
 from pydantic import BaseModel
-import logging
-import aiohttp
-from typing import Dict, Optional, Any
 from langgraph.config import get_store
-from mcp.client.streamable_http import streamablehttp_client
-from mcp import ClientSession, Tool, McpError
+from mcp import McpError
 from langchain_mcp_adapters.client import MultiServerMCPClient
-import warnings
+from open_deep_research.mcp_workflow.state import SearchSource
+from open_deep_research.mcp_workflow.configuration import SearchAPI, WorkflowConfiguration
+from open_deep_research.utils import tavily_search
+from open_deep_research.mcp_workflow.prompts import SUMMARIZATION_PROMPT
 
 
 class Summary(BaseModel):
