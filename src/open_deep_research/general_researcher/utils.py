@@ -334,7 +334,6 @@ async def load_mcp_tools(
             "transport": "streamable_http"
         }
     }
-    print(mcp_server_config)
     client = MultiServerMCPClient(mcp_server_config)
     mcp_tools = await client.get_tools()
     for tool in mcp_tools:

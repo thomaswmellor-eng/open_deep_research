@@ -1245,12 +1245,11 @@ async def scrape_pages(titles: List[str], urls: List[str]) -> str:
     return formatted_output
 
 @tool
-async def duckduckgo_search(search_queries: List[str], config: RunnableConfig = None):
+async def duckduckgo_search(search_queries: List[str]):
     """Perform searches using DuckDuckGo with retry logic to handle rate limits
     
     Args:
         search_queries (List[str]): List of search queries to process
-        config (RunnableConfig, optional): Configuration for search processing
         
     Returns:
         str: A formatted string of search results
@@ -1352,47 +1351,7 @@ async def duckduckgo_search(search_queries: List[str], config: RunnableConfig = 
     
     # If we got any valid URLs, scrape the pages
     if urls:
-        scraped_content = await scrape_pages(titles, urls)
-        if config and config.get("process_search_results") == "summarize":
-            configurable = Configuration.from_runnable_config(config)
-            max_char_to_include = 30_000
-            
-            unique_results = {}
-            for response in search_docs:
-                for result in response['results']:
-                    url = result['url']
-                    if url not in unique_results:
-                        unique_results[url] = result
-            
-            summarization_model = init_chat_model(
-                model=configurable.summarization_model,
-                max_retries=configurable.max_structured_output_retries,
-            )
-            
-            async def noop():
-                return None
-            
-            summarization_tasks = [
-                noop() if not result.get("raw_content") else summarize_webpage(summarization_model, result['raw_content'][:max_char_to_include])
-                for result in unique_results.values()
-            ]
-            summaries = await asyncio.gather(*summarization_tasks)
-            
-            unique_results = {
-                url: {'title': result['title'], 'content': result['content'] if summary is None else summary}
-                for url, result, summary in zip(unique_results.keys(), unique_results.values(), summaries)
-            }
-            
-            formatted_output = f"Search results: \n\n"
-            for i, (url, result) in enumerate(unique_results.items()):
-                formatted_output += f"\n\n--- SOURCE {i+1}: {result['title']} ---\n"
-                formatted_output += f"URL: {url}\n\n"
-                formatted_output += f"SUMMARY:\n{result['content']}\n\n"
-                formatted_output += "\n\n" + "-" * 80 + "\n"
-            
-            return formatted_output
-
-        return scraped_content
+        return await scrape_pages(titles, urls)
     else:
         return "No valid search results found. Please try different search queries or use a different search API."
 
@@ -1445,9 +1404,16 @@ async def tavily_search(
     max_char_to_include = 30_000
     # TODO: share this behavior across all search implementations / tools
     if configurable.process_search_results == "summarize":
+        if configurable.summarization_model_provider == "anthropic":
+            extra_kwargs = {"betas": ["extended-cache-ttl-2025-04-11"]}
+        else:
+            extra_kwargs = {}
+
         summarization_model = init_chat_model(
             model=configurable.summarization_model,
+            model_provider=configurable.summarization_model_provider,
             max_retries=configurable.max_structured_output_retries,
+            **extra_kwargs
         )
         summarization_tasks = [
             noop() if not result.get("raw_content") else summarize_webpage(summarization_model, result['raw_content'][:max_char_to_include])
@@ -1552,7 +1518,7 @@ async def select_and_execute_search(search_api: str, query_list: list[str], para
         return await tavily_search.ainvoke({'queries': query_list, **params_to_pass})
     elif search_api == "duckduckgo":
         # DuckDuckGo search tool used with both workflow and agent 
-        return await duckduckgo_search.ainvoke({'search_queries': query_list, 'config': params_to_pass})
+        return await duckduckgo_search.ainvoke({'search_queries': query_list})
     elif search_api == "perplexity":
         search_results = perplexity_search(query_list, **params_to_pass)
     elif search_api == "exa":
@@ -1586,17 +1552,15 @@ async def summarize_webpage(model: BaseChatModel, webpage_content: str) -> str:
             user_input_content = [{
                 "type": "text",
                 "text": user_input_content,
+                "cache_control": {"type": "ephemeral", "ttl": "1h"}
             }]
-        summary = await asyncio.wait_for(
-            model.with_structured_output(Summary).with_retry(stop_after_attempt=2).ainvoke([
-                {"role": "system", "content": SUMMARIZATION_PROMPT.format(webpage_content=webpage_content)},
-                {"role": "user", "content": user_input_content},
-            ]),
-            timeout=30.0  # 30 second timeout
-        )
-    except (asyncio.TimeoutError, Exception) as e:
-        # fall back on the raw content for both timeouts and other exceptions
-        print(f"Failed to summarize webpage: {str(e)}")
+
+        summary = await model.with_structured_output(Summary).with_retry(stop_after_attempt=2).ainvoke([
+            {"role": "system", "content": SUMMARIZATION_PROMPT.format(webpage_content=webpage_content)},
+            {"role": "user", "content": user_input_content},
+        ])
+    except:
+        # fall back on the raw content
         return webpage_content
 
     def format_summary(summary: Summary):
