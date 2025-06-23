@@ -12,7 +12,8 @@ Open Deep Research is an experimental, fully open-source research assistant that
 
 #### MCP Workflow
 
-![mcp-workflow-overview]()
+![mcp-workflow-overview](https://github.com/user-attachments/assets/76477350-3df6-4c3c-907a-c901fa493e78)
+
 
 ### 🚀 Quickstart
 
@@ -291,6 +292,8 @@ The MCP integration allows research agents to incorporate local knowledge and ex
 
 
 ## 3. MCP Workflow Implementation (`src/open_deep_research/mcp_workflow/mcp_workflow.py`)
+
+![mcp-workflow-overview](https://github.com/user-attachments/assets/76477350-3df6-4c3c-907a-c901fa493e78)
 
 The MCP Workflow implementation makes use of more up-front research before trying to write the report. It is a blend of the above two approaches, where the agent is given more flexibility to call tools, but in a more on-rails fashion within a research and reflection loop.
 
