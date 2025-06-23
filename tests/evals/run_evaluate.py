@@ -14,7 +14,7 @@ load_dotenv("../.env")
 client = Client()
 
 # TODO: Configure these variables
-dataset_name = "ODR: Workflow Examples"
+dataset_name = "ODR: Comprehensive Test"
 evaluators = [eval_overall_quality, eval_relevance, eval_structure]
 
 # Target function for open_deep_research/graph.py

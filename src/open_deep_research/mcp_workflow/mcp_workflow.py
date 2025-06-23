@@ -91,7 +91,7 @@ async def research(state: ResearchUnitState, config: RunnableConfig) -> Command[
         mcp_prompt=configurable.mcp_prompt or ""
     )
     # ReAct Tool Calling Loop
-    while tool_calling_iterations < 5: # TODO: Replace with configurable
+    while tool_calling_iterations < configurable.max_tool_calls:
         response = await research_model.ainvoke([SystemMessage(content=system_prompt), *research_messages])
         research_messages.append(response)
         if len(response.tool_calls) == 0:

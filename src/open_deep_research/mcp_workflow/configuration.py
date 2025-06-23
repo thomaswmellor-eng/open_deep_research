@@ -111,6 +111,19 @@ class WorkflowConfiguration(BaseModel):
             }
         }
     )
+    max_tool_calls: int = Field(
+        default=5,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "slider",
+                "default": 5,
+                "min": 1,
+                "max": 30,
+                "step": 1,
+                "description": "Maximum number of tool calls to make"
+            }
+        }
+    )
     # Model Configuration
     summarization_model: str = Field(
         default="anthropic:claude-3-5-haiku-latest",
