@@ -4,8 +4,7 @@ These are the messages that have been exchanged so far from the user asking for 
 {messages}
 </Messages>
 
-Return ONE targeted question to clarify report scope.
-If there are acronyms, abbreviations, or unknown terms, ask the user to clarify.
+Return ONE targeted question to clarify report scope
 Focus on: technical depth, target audience, specific aspects to emphasize
 Examples: "Should I focus on technical implementation details or high-level business benefits?" 
 """
@@ -27,11 +26,10 @@ Your goal is to generate {number_of_queries} web search queries that will help g
 
 The queries should:
 
-1. Be related to the topic in the messages from the user
+1. Be related to the Report topic
 2. Help satisfy the requirements specified in the report organization
 
 Make the queries specific enough to find high-quality, relevant sources while covering the breadth needed for the report structure.
-If there are any acronyms, abbreviations, or unknown terms and you don't have clarification from the user, select a SINGLE definition of the term and use those fully spelled out in the query to avoid ambiguity.
 </Task>
 
 <Format>
@@ -60,8 +58,6 @@ Here is context to use to plan the sections of the report:
 
 <Task>
 Generate a list of sections for the report. Your plan should be tight and focused with NO overlapping sections or unnecessary filler. 
-
-If there are any acronyms, abbreviations, or unknown terms and you don't have clarification from the user, select a SINGLE definition of the term and use those fully spelled out in the section names and descriptions to avoid ambiguity.
 
 For example, a good report structure might look like:
 1/ intro
