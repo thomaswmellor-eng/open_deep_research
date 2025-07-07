@@ -1,14 +1,18 @@
 # Open Deep Research
 
-Open Deep Research is an experimental, fully open-source research assistant that automates deep research and produces comprehensive reports on any topic. It features two implementations - a [workflow](https://langchain-ai.github.io/langgraph/tutorials/workflows/) and a multi-agent architecture - each with distinct advantages. You can customize the entire research and writing process with specific models, prompts, report structure, and search tools.
+Open Deep Research is an experimental, fully open-source research assistant that automates deep research and produces comprehensive reports on any topic. It features three implementations - a [workflow](https://langchain-ai.github.io/langgraph/tutorials/workflows/) a multi-agent architecture, and a v2 deep research agent which is a mix of both.. You can customize the entire research and writing process with specific models, prompts, report structure, and search tools.
 
 #### Workflow
 
 ![open-deep-research-overview](https://github.com/user-attachments/assets/a171660d-b735-4587-ab2f-cd771f773756)
 
-####  Multi-agent
+#### Multi-agent
 
 ![multi-agent-researcher](https://github.com/user-attachments/assets/3c734c3c-57aa-4bc0-85dd-74e2ec2c0880)
+
+#### Deep Researcher V2
+
+
 
 ### 🚀 Quickstart
 
@@ -99,6 +103,8 @@ Available search tools:
 * [Google Search API/Scrapper](https://google.com/) - Create custom search engine [here](https://programmablesearchengine.google.com/controlpanel/all) and get API key [here](https://developers.google.com/custom-search/v1/introduction)
 * [Microsoft Azure AI Search](https://azure.microsoft.com/en-us/products/ai-services/ai-search) - Cloud based vector database solution 
 
+Note that only Tavily search is implemented as a default for the Deep Researcher V2 - other search tools can be provided through the MCP integration!
+
 Open Deep Research is compatible with many different LLMs: 
 
 * You can select any model that is integrated [with the `init_chat_model()` API](https://python.langchain.com/docs/how_to/chat_models_universal_init/)
@@ -114,7 +120,7 @@ See [src/open_deep_research/graph.ipynb](src/open_deep_research/graph.ipynb) and
 
 ## Open Deep Research Implementations
 
-Open Deep Research features two distinct implementation approaches, each with its own strengths:
+Open Deep Research features three distinct implementation approaches, each with its own strengths:
 
 ## 1. Graph-based Workflow Implementation (`src/open_deep_research/graph.py`)
 
