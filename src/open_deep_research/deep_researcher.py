@@ -61,7 +61,7 @@ async def clarify_with_user(state: AgentState, config: RunnableConfig) -> Comman
     if response.need_clarification:
         return Command(goto=END, update={"messages": [AIMessage(content=response.question)]})
     else:
-        return Command(goto="write_research_brief")
+        return Command(goto="write_research_brief", update={"messages": [AIMessage(content=response.verification)]})
 
 
 async def write_research_brief(state: AgentState, config: RunnableConfig)-> Command[Literal["research_supervisor"]]:
