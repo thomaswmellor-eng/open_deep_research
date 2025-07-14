@@ -1,45 +1,35 @@
 # Open Deep Research
 
-Open Deep Research is an experimental, fully open-source research assistant that automates deep research and produces comprehensive reports on any topic. You can customize the entire research and writing process with specific models, prompts, and search tools.
+Deep research has broken out as one of the most popular agent applications. This is a simple, configurable, fully open source deep research agent that works across many model providers, search tools, and MCP servers. 
 
-You can read more about our architecture and decision making in this [blog]()
-
-Two prior implementations - a [workflow](https://langchain-ai.github.io/langgraph/tutorials/workflows/) and our first multi-agent architecture can found in the legacy folder.
+* Read more in our blog 
+* See our video for a quick overview
 
 ### 🚀 Quickstart
 
-Clone the repository:
+1. Clone the repository and activate a virtual environment:
 ```bash
 git clone https://github.com/langchain-ai/open_deep_research.git
 cd open_deep_research
+uv venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 ```
 
-Then edit the `.env` file to customize the environment variables (for model selection, search tools, and other configuration settings):
+2. Install dependencies:
+```bash
+uv pip install -r pyproject.toml
+```
+
+3. Set up your `.env` file to customize the environment variables (for model selection, search tools, and other configuration settings):
 ```bash
 cp .env.example .env
 ```
 
-Launch the assistant with the LangGraph server locally, which will open in your browser:
-
-#### Mac
+4. Launch the assistant with the LangGraph server locally to open LangGraph Studio in your browser:
 
 ```bash
-# Install uv package manager
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
 # Install dependencies and start the LangGraph server
 uvx --refresh --from "langgraph-cli[inmem]" --with-editable . --python 3.11 langgraph dev --allow-blocking
-```
-
-#### Windows / Linux
-
-```powershell
-# Install dependencies 
-pip install -e .
-pip install -U "langgraph-cli[inmem]" 
-
-# Start the LangGraph server
-langgraph dev
 ```
 
 Use this to open the Studio UI:
@@ -49,74 +39,82 @@ Use this to open the Studio UI:
 - 📚 API Docs: http://127.0.0.1:2024/docs
 ```
 
-### Using the package
+Ask a question in the `messages` input field and click `Submit`.
 
+### Configurations
+
+Open Deep Research offers extensive configuration options to customize the research process and model behavior. All configurations can be set via the web UI, environment variables, or by modifying the configuration directly.
+
+#### General Settings
+
+- **Max Structured Output Retries** (default: 3): Maximum number of retries for structured output calls from models when parsing fails
+- **Allow Clarification** (default: true): Whether to allow the researcher to ask clarifying questions before starting research
+- **Max Concurrent Research Units** (default: 5): Maximum number of research units to run concurrently using sub-agents. Higher values enable faster research but may hit rate limits
+
+#### Research Configuration
+
+- **Search API** (default: Tavily): Choose from Tavily (works with all models), OpenAI Native Web Search, Anthropic Native Web Search, or None
+- **Max Researcher Iterations** (default: 3): Number of times the Research Supervisor will reflect on research and ask follow-up questions
+- **Max React Tool Calls** (default: 5): Maximum number of tool calling iterations in a single researcher step
+
+#### Models
+
+Open Deep Research uses multiple specialized models for different research tasks:
+
+- **Summarization Model** (default: `openai:gpt-4.1-nano`): Summarizes research results from search APIs
+- **Research Model** (default: `openai:gpt-4.1`): Conducts research and analysis 
+- **Compression Model** (default: `openai:gpt-4.1-mini`): Compresses research findings from sub-agents
+- **Final Report Model** (default: `openai:gpt-4.1`): Writes the final comprehensive report
+
+All models are configured using [init_chat_model() API](https://python.langchain.com/docs/how_to/chat_models_universal_init/) which supports providers like OpenAI, Anthropic, Google Vertex AI, and others.
+
+**Important Model Requirements:**
+
+1. **Structured Outputs**: All models must support structured outputs. Check support [here](https://python.langchain.com/docs/integrations/chat/).
+
+2. **Search API Compatibility**: Research and Compression models must support your selected search API:
+   - Anthropic search requires Anthropic models with web search capability
+   - OpenAI search requires OpenAI models with web search capability  
+   - Tavily works with all models
+
+3. **Tool Calling**: All models must support tool calling functionality
+
+4. **Special Configurations**:
+   - For OpenRouter: Follow [this guide](https://github.com/langchain-ai/open_deep_research/issues/75#issuecomment-2811472408)
+   - For local models via Ollama: See [setup instructions](https://github.com/langchain-ai/open_deep_research/issues/65#issuecomment-2743586318)
+
+#### Example MCP (Model Context Protocol) Servers
+
+Open Deep Research supports MCP servers to extend research capabilities. 
+
+#### Local MCP Servers
+
+**Filesystem MCP Server** provides secure file system operations with robust access control:
+- Read, write, and manage files and directories
+- Perform operations like reading file contents, creating directories, moving files, and searching
+- Restrict operations to predefined directories for security
+- Support for both command-line configuration and dynamic MCP roots
+
+Example usage:
 ```bash
-pip install open-deep-research
+mcp-server-filesystem /path/to/allowed/dir1 /path/to/allowed/dir2
 ```
 
-## Configuring Open Deep Research
+#### Remote MCP Servers  
 
-Open deep research uses a supervisor-researcher architecture:
+**Remote MCP servers** enable distributed agent coordination and support streamable HTTP requests. Unlike local servers, they can be multi-tenant and require more complex authentication.
 
-- **Supervisor Agent**: Manages the overall research process, hands off research tasks to Researcher Agents
-- **Researcher Agents**: Multiple independent agents work in parallel, each responsible for researching and returning findings on a specific section
-- **Search and MCP Support**: Works with Tavily for web search, and also OpenAI or Anthropic native web search, also supports MCP servers for local/external data access, or can operate without search tools using only MCP tools
-
-You can customize the open deep research through several parameters:
-
-- `search_api`: The researcher's web search tool. Tavily by default, can also use OpenAI or Anthropic native web search, or None to use only MCP tools
-- `allow_clarification`: If true, the researcher can choose to chat with the user to gain additional context before deep research (default: true)
-- `max_concurrent_research_units`: Maximum number of research units to run concurrently. This will allow the researcher to use multiple sub-agents to conduct research. Note: with more concurrency, you may run into rate limits. (default: 5)
-- `max_researcher_iterations`: Maximum number of research iterations for the Research Supervisor. This is the number of times the Research Supervisor will reflect on the research and ask follow-up questions. (default: 3)
-- `max_react_tool_calls`: "Maximum number of tool calling iterations to make in a single researcher step. (default: 5)
-- `research_model`: Model for supervisor and researcher agents (default: "openai:gpt-4.1") 
-- `compression_model`: Model for compressing research findings from sub-agents. NOTE: Make sure your Compression Model supports the selected search API. (default: "openai:gpt-4.1-mini") 
-- `final_report_model`: Model for writing the final report from all research findings. (default: "openai:gpt-4.1") 
-- `summarization_model`: Only used if Tavily is the Search API, model used to summarize webpages found with Tavily. (default: "openai:gpt-4.1-nano") 
-- `mcp_config`: Configuration for MCP servers (optional)
-- `mcp_prompt`: Additional instructions for using MCP tools (optional)
-
-
-## MCP (Model Context Protocol) Support
-
-Open Deep Research supports MCP servers to extend research capabilities beyond web search. MCP tools are available to research agents alongside traditional search tools, enabling access to local files, databases, APIs, and other data sources. Open Deep Research was built to be compatible with Open Agent Platform, which is the primary means through which we expect folks to connect to their MCP servers and expose tools to end users.
-
-#### Arcade Example
-
-##### Studio
-MCP config:
-```
+**Arcade MCP Server Example**:
+```json
 {
-  "url": "https://api.arcade.dev/v1/mcps/ms_0ujssxh0cECutqzMgbtXSGnjorm"
+  "url": "https://api.arcade.dev/v1/mcps/ms_0ujssxh0cECutqzMgbtXSGnjorm",
   "tools": ["Search_SearchHotels", "Search_SearchOneWayFlights", "Search_SearchRoundtripFlights"]
 }
 ```
 
-MCP prompt:
-```
-Use these tools to look up information about flights and hotels
-```
-## Open Agent Platform
-Follow this [quickstart guide](https://docs.oap.langchain.com/quickstart) for Open Agent Platform to deploy the Deep Researcher on OAP!
+Remote servers can be configured as authenticated or unauthenticated and support JWT-based authentication through OAuth endpoints.
 
-Open Agent Platform is a UI from which non-technical users can build and configure their own agents. Each user can configure the Deep Researcher with different MCP tools and search APIs that are best suited to their needs and the problems that they want to solve.
-
-## Model Considerations
-
-(1) You can use models supported with [the `init_chat_model()` API](https://python.langchain.com/docs/how_to/chat_models_universal_init/). See full list of supported integrations [here](https://python.langchain.com/api_reference/langchain/chat_models/langchain.chat_models.base.init_chat_model.html).
-
-(2) ***All models need to support structured outputs***: Check whether structured outputs are supported by the model you are using [here](https://python.langchain.com/docs/integrations/chat/).
-
-(3) ***The Research and Compression models need to support the Search API***: If you select Anthropic search, you need to use Anthropic models which support web search for these two configurations. If you select OpenAI search, you need to use OpenAI models which support web search for these two configurations. Tavily works with all models.
-
-(4) ***All models need to support tool calling*** Ensure tool calling is well supoorted
-
-(5) Follow [here[(https://github.com/langchain-ai/open_deep_research/issues/75#issuecomment-2811472408) to use with OpenRouter.
-
-(6) For working with local models via Ollama, see [here](https://github.com/langchain-ai/open_deep_research/issues/65#issuecomment-2743586318).
-
-## Evaluation
+### Evaluation
 
 A comprehensive batch evaluation system designed for detailed analysis and comparative studies.
 
@@ -129,18 +127,41 @@ A comprehensive batch evaluation system designed for detailed analysis and compa
 # Run comprehensive evaluation on LangSmith datasets
 python tests/run_evaluate.py
 ```
-
 #### **Key Files:**
 - `tests/run_evaluate.py`: Main evaluation script
 - `tests/evaluators.py`: Specialized evaluator functions
 - `tests/prompts.py`: Evaluation prompts for each dimension
 
-## UX
+### Deployments and Usages
 
-### Local deployment
+#### Local deployment
 
 Follow the [quickstart](#-quickstart) to start LangGraph server locally.
 
-### Hosted deployment
+#### Hosted deployment
  
 You can easily deploy to [LangGraph Platform](https://langchain-ai.github.io/langgraph/concepts/#deployment-options). 
+
+#### Open Agent Platform
+
+Open Agent Platform is a UI from which non-technical users can build and configure their own agents. Each user can configure the Deep Researcher with different MCP tools and search APIs that are best suited to their needs and the problems that they want to solve. Follow this [quickstart guide](https://docs.oap.langchain.com/quickstart) for Open Agent Platform to deploy the Deep Researcher on OAP!
+
+### Updates 🔥
+
+### Legacy Implementations 🏛️
+
+The `src/legacy/` folder contains two earlier implementations that provide alternative approaches to automated research:
+
+#### 1. Workflow Implementation (`legacy/graph.py`)
+- **Plan-and-Execute**: Structured workflow with human-in-the-loop planning
+- **Sequential Processing**: Creates sections one by one with reflection
+- **Interactive Control**: Allows feedback and approval of report plans
+- **Quality Focused**: Emphasizes accuracy through iterative refinement
+
+#### 2. Multi-Agent Implementation (`legacy/multi_agent.py`)  
+- **Supervisor-Researcher Architecture**: Coordinated multi-agent system
+- **Parallel Processing**: Multiple researchers work simultaneously
+- **Speed Optimized**: Faster report generation through concurrency
+- **MCP Support**: Extensive Model Context Protocol integration
+
+See `src/legacy/legacy.md` for detailed documentation, configuration options, and usage examples for both legacy implementations.
