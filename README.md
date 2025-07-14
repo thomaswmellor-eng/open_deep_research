@@ -39,7 +39,7 @@ Use this to open the Studio UI:
 - 📚 API Docs: http://127.0.0.1:2024/docs
 ```
 
-Ask a questions in the `messages` input field and click `Submit`.
+Ask a question in the `messages` input field and click `Submit`.
 
 ### Configurations
 
