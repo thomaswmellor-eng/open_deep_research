@@ -22,11 +22,11 @@ max_researcher_iterations = 5
 max_react_tool_calls = 10
 summarization_model = "openai:gpt-4.1-nano"
 summarization_model_max_tokens = 8192
-research_model = "openai:o4-mini"
+research_model = "openai:gpt-4.1"
 research_model_max_tokens = 10000
-compression_model = "openai:gpt-4.1-mini"
+compression_model = "openai:gpt-4.1"
 compression_model_max_tokens = 10000
-final_report_model = "openai:o4-mini"
+final_report_model = "openai:gpt-4.1"
 final_report_model_max_tokens = 10000
 
 
@@ -64,11 +64,10 @@ async def target(
 async def main():
     return await client.aevaluate(
         target,
-        data=client.list_examples(dataset_name=dataset_name, example_ids=["7a193936-d957-48c0-96ae-385a1f28e043"]),
-        # data=client.list_examples(dataset_name=dataset_name, splits=["english"]),
+        data=dataset_name,
         evaluators=evaluators,
-        experiment_prefix=f"ODR OpenAI Reasoning o4-mini - Tavily: Example 51 #",
-        max_concurrency=1,
+        experiment_prefix=f"ODR GPT-4.1, Tavily Search #",
+        max_concurrency=10,
         metadata={
             "max_structured_output_retries": max_structured_output_retries,
             "allow_clarification": allow_clarification,

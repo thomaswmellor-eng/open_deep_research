@@ -319,6 +319,7 @@ async def final_report_generation(state: AgentState, config: RunnableConfig):
     while current_retry <= max_retries:
         final_report_prompt = final_report_generation_prompt.format(
             research_brief=state.get("research_brief", ""),
+            messages=get_buffer_string(state.get("messages", [])),
             findings=findings,
             date=get_today_str()
         )
