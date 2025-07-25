@@ -56,7 +56,6 @@ async def clarify_with_user(state: AgentState, config: RunnableConfig) -> Comman
         "api_key": get_api_key_for_model(configurable.research_model, config),
         "tags": ["langsmith:nostream"]
     }
-    print("model_config", model_config)
     model = configurable_model.with_structured_output(ClarifyWithUser).with_retry(stop_after_attempt=configurable.max_structured_output_retries).with_config(model_config)
     response = await model.ainvoke([HumanMessage(content=clarify_with_user_instructions.format(messages=get_buffer_string(messages), date=get_today_str()))])
     if response.need_clarification:
