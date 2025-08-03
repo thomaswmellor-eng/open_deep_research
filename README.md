@@ -130,10 +130,32 @@ A comprehensive batch evaluation system designed for detailed analysis and compa
 # Run comprehensive evaluation on LangSmith datasets
 python tests/run_evaluate.py
 ```
-#### **Key Files:**
-- `tests/run_evaluate.py`: Main evaluation script
-- `tests/evaluators.py`: Specialized evaluator functions
-- `tests/prompts.py`: Evaluation prompts for each dimension
+
+#### **Deep Research Bench Submission:**
+The evaluation runs against the [Deep Research Bench](https://github.com/Ayanami0730/deep_research_bench), a comprehensive benchmark with 100 PhD-level research tasks across 22 fields.
+
+To submit results to the benchmark:
+
+1. **Run Evaluation**: Execute `python tests/run_evaluate.py` to evaluate against the Deep Research Bench dataset
+2. **Extract Results**: Use the extraction script to generate JSONL output:
+   ```bash
+   python tests/extract_langsmith_data.py --project-name "YOUR_PROJECT_NAME" --model-name "gpt-4.1" --dataset-name "deep_research_bench"
+   ```
+   This creates `tests/expt_results/deep_research_bench_gpt-4.1.jsonl` with the required format.
+3. **Submit to Benchmark**: Move the generated JSONL file to the Deep Research Bench repository and follow their [Quick Start guide](https://github.com/Ayanami0730/deep_research_bench?tab=readme-ov-file#quick-start) for evaluation submission
+
+> **Note:** We submitted results from [this commit](https://github.com/langchain-ai/open_deep_research/commit/c0a160b57a9b5ecd4b8217c3811a14d8eff97f72) to the Deep Research Bench, resulting in an overall score of 0.4344 (#6 on the leaderboard).
+
+Results for current `main` branch utilize more constrained promoting to reduce token spend ~4x while still achieving a score of 0.4223. 
+
+```
+=== Evaluation Results Summary ===
+INFO:__main__:Comprehensiveness:      0.4117
+INFO:__main__:Insight:                0.3755
+INFO:__main__:Instruction Following:  0.4770
+INFO:__main__:Readability:            0.4458
+INFO:__main__:Overall Score:          0.4223
+```
 
 ### Deployments and Usages
 

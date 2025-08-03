@@ -78,8 +78,8 @@ async def tavily_search(
     # Step 3: Set up the summarization model with configuration
     configurable = Configuration.from_runnable_config(config)
     
-    # Character limit to stay within model token limits
-    max_char_to_include = 50_000  # Tunable parameter for content truncation
+    # Character limit to stay within model token limits (configurable)
+    max_char_to_include = configurable.max_content_length
     
     # Initialize summarization model with retry logic
     model_api_key = get_api_key_for_model(configurable.summarization_model, config)
@@ -203,8 +203,13 @@ async def summarize_webpage(model: BaseChatModel, webpage_content: str) -> str:
         
         return formatted_summary
         
-    except (asyncio.TimeoutError, Exception):
-        # Fallback: return original content if summarization fails
+    except asyncio.TimeoutError:
+        # Timeout during summarization - return original content
+        logging.warning(f"Summarization timed out after 60 seconds, returning original content")
+        return webpage_content
+    except Exception as e:
+        # Other errors during summarization - log and return original content
+        logging.warning(f"Summarization failed with error: {str(e)}, returning original content")
         return webpage_content
 
 ##########################

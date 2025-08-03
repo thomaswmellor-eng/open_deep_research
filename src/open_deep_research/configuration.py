@@ -138,6 +138,18 @@ class Configuration(BaseModel):
             }
         }
     )
+    max_content_length: int = Field(
+        default=50000,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "number",
+                "default": 50000,
+                "min": 1000,
+                "max": 200000,
+                "description": "Maximum character length for webpage content before summarization"
+            }
+        }
+    )
     research_model: str = Field(
         default="anthropic:claude-sonnet-4-20250514",
         metadata={
