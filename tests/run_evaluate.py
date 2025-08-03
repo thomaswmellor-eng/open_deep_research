@@ -20,9 +20,9 @@ max_concurrent_research_units = 10
 search_api = "tavily" # NOTE: We use Tavily to stay consistent
 max_researcher_iterations = 5
 max_react_tool_calls = 10
-summarization_model = "openai:gpt-4.1-nano"
+summarization_model = "openai:gpt-4.1-mini"
 summarization_model_max_tokens = 8192
-research_model = "openai:gpt-4.1"
+research_model = "anthropic:claude-sonnet-4-20250514"
 research_model_max_tokens = 10000
 compression_model = "openai:gpt-4.1"
 compression_model_max_tokens = 10000
@@ -66,8 +66,8 @@ async def main():
         target,
         data=dataset_name,
         evaluators=evaluators,
-        experiment_prefix=f"ODR GPT-4.1, Tavily Search #",
-        max_concurrency=10,
+        experiment_prefix=f"ODR Claude4-Sonnet, Tavily Search #",
+        max_concurrency=1, # Avoid rate limits
         metadata={
             "max_structured_output_retries": max_structured_output_retries,
             "allow_clarification": allow_clarification,

@@ -1,16 +1,24 @@
-from pydantic import BaseModel, Field
-from typing import Any, List, Optional
-from langchain_core.runnables import RunnableConfig
+"""Configuration management for the Open Deep Research system."""
+
 import os
 from enum import Enum
+from typing import Any, List, Optional
+
+from langchain_core.runnables import RunnableConfig
+from pydantic import BaseModel, Field
+
 
 class SearchAPI(Enum):
+    """Enumeration of available search API providers."""
+    
     ANTHROPIC = "anthropic"
     OPENAI = "openai"
     TAVILY = "tavily"
     NONE = "none"
 
 class MCPConfig(BaseModel):
+    """Configuration for Model Context Protocol (MCP) servers."""
+    
     url: Optional[str] = Field(
         default=None,
         optional=True,
@@ -28,6 +36,8 @@ class MCPConfig(BaseModel):
     """Whether the MCP server requires authentication"""
 
 class Configuration(BaseModel):
+    """Main configuration class for the Deep Research agent."""
+    
     # General Configuration
     max_structured_output_retries: int = Field(
         default=3,
@@ -109,11 +119,11 @@ class Configuration(BaseModel):
     )
     # Model Configuration
     summarization_model: str = Field(
-        default="openai:gpt-4.1-nano",
+        default="openai:gpt-4.1-mini",
         metadata={
             "x_oap_ui_config": {
                 "type": "text",
-                "default": "openai:gpt-4.1-nano",
+                "default": "openai:gpt-4.1-mini",
                 "description": "Model for summarizing research results from Tavily search results"
             }
         }
@@ -129,11 +139,11 @@ class Configuration(BaseModel):
         }
     )
     research_model: str = Field(
-        default="openai:gpt-4.1",
+        default="anthropic:claude-sonnet-4-20250514",
         metadata={
             "x_oap_ui_config": {
                 "type": "text",
-                "default": "openai:gpt-4.1",
+                "default": "anthropic:claude-sonnet-4-20250514",
                 "description": "Model for conducting research. NOTE: Make sure your Researcher Model supports the selected search API."
             }
         }
@@ -149,11 +159,11 @@ class Configuration(BaseModel):
         }
     )
     compression_model: str = Field(
-        default="openai:gpt-4.1-mini",
+        default="openai:gpt-4.1",
         metadata={
             "x_oap_ui_config": {
                 "type": "text",
-                "default": "openai:gpt-4.1-mini",
+                "default": "openai:gpt-4.1",
                 "description": "Model for compressing research findings from sub-agents. NOTE: Make sure your Compression Model supports the selected search API."
             }
         }
@@ -225,4 +235,6 @@ class Configuration(BaseModel):
         return cls(**{k: v for k, v in values.items() if v is not None})
 
     class Config:
+        """Pydantic configuration."""
+        
         arbitrary_types_allowed = True

@@ -64,9 +64,9 @@ Open Deep Research offers extensive configuration options to customize the resea
 
 Open Deep Research uses multiple specialized models for different research tasks:
 
-- **Summarization Model** (default: `openai:gpt-4.1-nano`): Summarizes research results from search APIs
-- **Research Model** (default: `openai:gpt-4.1`): Conducts research and analysis 
-- **Compression Model** (default: `openai:gpt-4.1-mini`): Compresses research findings from sub-agents
+- **Summarization Model** (default: `openai:gpt-4.1-mini`): Summarizes research results from search APIs
+- **Research Model** (default: `anthropic:claude-sonnet-4-20250514`): Conducts research and analysis 
+- **Compression Model** (default: `openai:gpt-4.1`): Compresses research findings from sub-agents
 - **Final Report Model** (default: `openai:gpt-4.1`): Writes the final comprehensive report
 
 All models are configured using [init_chat_model() API](https://python.langchain.com/docs/how_to/chat_models_universal_init/) which supports providers like OpenAI, Anthropic, Google Vertex AI, and others.
@@ -172,5 +172,19 @@ The `src/legacy/` folder contains two earlier implementations that provide alter
 - **Parallel Processing**: Multiple researchers work simultaneously
 - **Speed Optimized**: Faster report generation through concurrency
 - **MCP Support**: Extensive Model Context Protocol integration
+
+#### Legacy Implementation Default Models
+
+The legacy implementations use the following default models:
+
+**Multi-Agent Implementation:**
+- **Supervisor Model**: `anthropic:claude-sonnet-4-20250514`
+- **Researcher Model**: `anthropic:claude-sonnet-4-20250514`
+- **Summarization Model**: `openai:gpt-4.1`
+
+**Workflow Implementation:**
+- **Planner Model**: `anthropic:claude-3-7-sonnet-latest`
+- **Writer Model**: `openai:gpt-4.1`
+- **Summarization Model**: `openai:gpt-4.1`
 
 See `src/legacy/legacy.md` for detailed documentation, configuration options, and usage examples for both legacy implementations.
