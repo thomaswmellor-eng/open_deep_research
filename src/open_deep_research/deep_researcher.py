@@ -4,6 +4,7 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.graph import START, END, StateGraph
 from langgraph.types import Command
 import asyncio
+import os
 from typing import Literal
 from open_deep_research.configuration import (
     Configuration, 
@@ -42,7 +43,7 @@ from open_deep_research.utils import (
 
 # Initialize a configurable model that we will use throughout the agent
 configurable_model = init_chat_model(
-    configurable_fields=("model", "max_tokens", "api_key"),
+    configurable_fields=("model", "max_tokens", "api_key", "azure_endpoint", "api_version"),
 )
 
 async def clarify_with_user(state: AgentState, config: RunnableConfig) -> Command[Literal["write_research_brief", "__end__"]]:
@@ -54,6 +55,8 @@ async def clarify_with_user(state: AgentState, config: RunnableConfig) -> Comman
         "model": configurable.research_model,
         "max_tokens": configurable.research_model_max_tokens,
         "api_key": get_api_key_for_model(configurable.research_model, config),
+        "azure_endpoint": os.getenv("AZURE_OPENAI_ENDPOINT"),
+        "api_version": os.getenv("OPENAI_API_VERSION"),
         "tags": ["langsmith:nostream"]
     }
     model = configurable_model.with_structured_output(ClarifyWithUser).with_retry(stop_after_attempt=configurable.max_structured_output_retries).with_config(model_config)
@@ -101,6 +104,8 @@ async def supervisor(state: SupervisorState, config: RunnableConfig) -> Command[
         "model": configurable.research_model,
         "max_tokens": configurable.research_model_max_tokens,
         "api_key": get_api_key_for_model(configurable.research_model, config),
+        "azure_endpoint": os.getenv("AZURE_OPENAI_ENDPOINT"),
+        "api_version": os.getenv("OPENAI_API_VERSION"),
         "tags": ["langsmith:nostream"]
     }
     lead_researcher_tools = [ConductResearch, ResearchComplete]
@@ -202,6 +207,8 @@ async def researcher(state: ResearcherState, config: RunnableConfig) -> Command[
         "model": configurable.research_model,
         "max_tokens": configurable.research_model_max_tokens,
         "api_key": get_api_key_for_model(configurable.research_model, config),
+        "azure_endpoint": os.getenv("AZURE_OPENAI_ENDPOINT"),
+        "api_version": os.getenv("OPENAI_API_VERSION"),
         "tags": ["langsmith:nostream"]
     }
     researcher_system_prompt = research_system_prompt.format(mcp_prompt=configurable.mcp_prompt or "", date=get_today_str())
@@ -268,6 +275,8 @@ async def compress_research(state: ResearcherState, config: RunnableConfig):
         "model": configurable.compression_model,
         "max_tokens": configurable.compression_model_max_tokens,
         "api_key": get_api_key_for_model(configurable.compression_model, config),
+        "azure_endpoint": os.getenv("AZURE_OPENAI_ENDPOINT"),
+        "api_version": os.getenv("OPENAI_API_VERSION"),
         "tags": ["langsmith:nostream"]
     })
     researcher_messages = state.get("researcher_messages", [])
@@ -310,6 +319,8 @@ async def final_report_generation(state: AgentState, config: RunnableConfig):
         "model": configurable.final_report_model,
         "max_tokens": configurable.final_report_model_max_tokens,
         "api_key": get_api_key_for_model(configurable.research_model, config),
+        "azure_endpoint": os.getenv("AZURE_OPENAI_ENDPOINT"),
+        "api_version": os.getenv("OPENAI_API_VERSION"),
     }
     
     findings = "\n".join(notes)

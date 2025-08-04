@@ -66,6 +66,8 @@ async def tavily_search(
         model=configurable.summarization_model,
         max_tokens=configurable.summarization_model_max_tokens,
         api_key=model_api_key,
+        azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+        api_version=os.getenv("OPENAI_API_VERSION"),
         tags=["langsmith:nostream"]
     ).with_structured_output(Summary).with_retry(stop_after_attempt=configurable.max_structured_output_retries)
     async def noop():
@@ -400,6 +402,9 @@ MODEL_TOKEN_LIMITS = {
     "openai:gpt-4.1-mini": 1047576,
     "openai:gpt-4.1-nano": 1047576,
     "openai:gpt-4.1": 1047576,
+    "azure_openai:gpt-4.1-mini": 1047576,
+    "azure_openai:gpt-4.1-nano": 1047576,
+    "azure_openai:gpt-4.1": 1047576,
     "openai:gpt-4o-mini": 128000,
     "openai:gpt-4o": 128000,
     "openai:o4-mini": 200000,
@@ -448,7 +453,7 @@ def remove_up_to_last_ai_message(messages: list[MessageLikeRepresentation]) -> l
 ##########################
 def get_today_str() -> str:
     """Get current date in a human-readable format."""
-    return datetime.now().strftime("%a %b %-d, %Y")
+    return datetime.now().strftime("%a %b %d, %Y").replace(" 0", " ")
 
 def get_config_value(value):
     if value is None:
@@ -467,16 +472,16 @@ def get_api_key_for_model(model_name: str, config: RunnableConfig):
         api_keys = config.get("configurable", {}).get("apiKeys", {})
         if not api_keys:
             return None
-        if model_name.startswith("openai:"):
-            return api_keys.get("OPENAI_API_KEY")
+        if model_name.startswith("openai:") or model_name.startswith("azure_openai:"):
+            return api_keys.get("AZURE_OPENAI_API_KEY")
         elif model_name.startswith("anthropic:"):
             return api_keys.get("ANTHROPIC_API_KEY")
         elif model_name.startswith("google"):
             return api_keys.get("GOOGLE_API_KEY")
         return None
     else:
-        if model_name.startswith("openai:"): 
-            return os.getenv("OPENAI_API_KEY")
+        if model_name.startswith("openai:") or model_name.startswith("azure_openai:"): 
+            return os.getenv("AZURE_OPENAI_API_KEY")
         elif model_name.startswith("anthropic:"):
             return os.getenv("ANTHROPIC_API_KEY")
         elif model_name.startswith("google"):
