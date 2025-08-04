@@ -61,15 +61,12 @@ async def tavily_search(
                 unique_results[url] = {**result, "query": response['query']}
     configurable = Configuration.from_runnable_config(config)
     max_char_to_include = 50_000   # NOTE: This can be tuned by the developer. This character count keeps us safely under input token limits for the latest models.
-    model_api_key = get_api_key_for_model(configurable.summarization_model, config)
-    summarization_model = init_chat_model(
-        model=configurable.summarization_model,
-        max_tokens=configurable.summarization_model_max_tokens,
-        api_key=model_api_key,
-        azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
-        api_version=os.getenv("OPENAI_API_VERSION"),
-        tags=["langsmith:nostream"]
-    ).with_structured_output(Summary).with_retry(stop_after_attempt=configurable.max_structured_output_retries)
+    summarization_model_config = get_model_config_with_azure_fallback(
+        configurable.summarization_model,
+        configurable.summarization_model_max_tokens,
+        config
+    )
+    summarization_model = init_chat_model(**summarization_model_config).with_structured_output(Summary).with_retry(stop_after_attempt=configurable.max_structured_output_retries)
     async def noop():
         return None
     summarization_tasks = [
@@ -407,6 +404,7 @@ MODEL_TOKEN_LIMITS = {
     "azure_openai:gpt-4.1": 1047576,
     "openai:gpt-4o-mini": 128000,
     "openai:gpt-4o": 128000,
+    "openai:gpt-4o-preview": 128000,
     "openai:o4-mini": 200000,
     "openai:o3-mini": 200000,
     "openai:o3": 200000,
@@ -473,7 +471,11 @@ def get_api_key_for_model(model_name: str, config: RunnableConfig):
         if not api_keys:
             return None
         if model_name.startswith("openai:") or model_name.startswith("azure_openai:"):
-            return api_keys.get("AZURE_OPENAI_API_KEY")
+            # Try Azure OpenAI first, then fallback to regular OpenAI
+            azure_key = api_keys.get("AZURE_OPENAI_API_KEY")
+            if azure_key:
+                return azure_key
+            return api_keys.get("OPENAI_API_KEY")
         elif model_name.startswith("anthropic:"):
             return api_keys.get("ANTHROPIC_API_KEY")
         elif model_name.startswith("google"):
@@ -481,7 +483,11 @@ def get_api_key_for_model(model_name: str, config: RunnableConfig):
         return None
     else:
         if model_name.startswith("openai:") or model_name.startswith("azure_openai:"): 
-            return os.getenv("AZURE_OPENAI_API_KEY")
+            # Try Azure OpenAI first, then fallback to regular OpenAI
+            azure_key = os.getenv("AZURE_OPENAI_API_KEY")
+            if azure_key:
+                return azure_key
+            return os.getenv("OPENAI_API_KEY")
         elif model_name.startswith("anthropic:"):
             return os.getenv("ANTHROPIC_API_KEY")
         elif model_name.startswith("google"):
@@ -497,3 +503,49 @@ def get_tavily_api_key(config: RunnableConfig):
         return api_keys.get("TAVILY_API_KEY")
     else:
         return os.getenv("TAVILY_API_KEY")
+
+def get_model_config_with_azure_fallback(model_name: str, max_tokens: int, config: RunnableConfig, tags: list = None):
+    """
+    Get model configuration with Azure OpenAI fallback to regular OpenAI.
+    Only includes Azure-specific parameters if Azure credentials are available.
+    """
+    api_key = get_api_key_for_model(model_name, config)
+    
+    # Check if we're using Azure OpenAI and have the necessary credentials
+    azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
+    api_version = os.getenv("OPENAI_API_VERSION")
+    azure_key = os.getenv("AZURE_OPENAI_API_KEY")
+    
+    # If we have Azure credentials and the model is Azure OpenAI, use Azure
+    if azure_endpoint and api_version and azure_key and model_name.startswith("azure_openai:"):
+        model_config = {
+            "model": model_name,
+            "max_tokens": max_tokens,
+            "api_key": azure_key,
+            "azure_endpoint": azure_endpoint,
+            "api_version": api_version,
+            "tags": tags or ["langsmith:nostream"]
+        }
+        return model_config
+    
+    # If model is Azure OpenAI but we don't have Azure credentials, convert to regular OpenAI
+    if model_name.startswith("azure_openai:") and not (azure_endpoint and api_version and azure_key):
+        # Convert Azure OpenAI model name to regular OpenAI with appropriate mapping
+        azure_to_openai_mapping = {
+            "azure_openai:gpt-4.1": "openai:gpt-4o",
+            "azure_openai:gpt-4.1-mini": "openai:gpt-4o-mini",
+            "azure_openai:gpt-4.1-nano": "openai:gpt-4o-mini",
+        }
+        model_name = azure_to_openai_mapping.get(model_name, model_name.replace("azure_openai:", "openai:"))
+    
+    model_config = {
+        "model": model_name,
+        "max_tokens": max_tokens,
+        "tags": tags or ["langsmith:nostream"]
+    }
+    
+    # Only add API key if we have one
+    if api_key:
+        model_config["api_key"] = api_key
+    
+    return model_config
