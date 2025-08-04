@@ -1,4 +1,4 @@
-# Open Deep Research
+# 🔬 Open Deep Research
 
 <img width="1388" height="298" alt="full_diagram" src="https://github.com/user-attachments/assets/12a2371b-8be2-4219-9b48-90503eb43c69" />
 
@@ -6,6 +6,10 @@ Deep research has broken out as one of the most popular agent applications. This
 
 * Read more in our [blog](https://blog.langchain.com/open-deep-research/) 
 * See our [video](https://www.youtube.com/watch?v=agGiWUpxkhg) for a quick overview
+
+### 🔥 Recent Updates
+
+**August 2, 2025**: Achieved #6 ranking on the [Deep Research Bench Leaderboard](https://huggingface.co/spaces/Ayanami0730/DeepResearch-Leaderboard) with an overall score of 0.4344. 
 
 ### 🚀 Quickstart
 
@@ -19,6 +23,8 @@ source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
 2. Install dependencies:
 ```bash
+uv sync
+# or
 uv pip install -r pyproject.toml
 ```
 
@@ -44,9 +50,9 @@ Use this to open the Studio UI:
 
 Ask a question in the `messages` input field and click `Submit`.
 
-### Configurations
+### ⚙️ Configurations
 
-Open Deep Research offers extensive configuration options to customize the research process and model behavior. All configurations can be set via the web UI, environment variables, or by modifying the configuration directly.
+Extensive configuration options to customize research behavior. Configure via web UI, environment variables, or direct modification.
 
 #### General Settings
 
@@ -117,9 +123,9 @@ mcp-server-filesystem /path/to/allowed/dir1 /path/to/allowed/dir2
 
 Remote servers can be configured as authenticated or unauthenticated and support JWT-based authentication through OAuth endpoints.
 
-### Evaluation
+### 📊 Evaluation
 
-A comprehensive batch evaluation system designed for detailed analysis and comparative studies.
+Comprehensive batch evaluation system for detailed analysis and comparative studies.
 
 #### **Features:**
 - **Multi-dimensional Scoring**: Specialized evaluators with 0-1 scale ratings
@@ -157,7 +163,9 @@ INFO:__main__:Readability:            0.4458
 INFO:__main__:Overall Score:          0.4223
 ```
 
-### Deployments and Usages
+### 🚀 Deployments and Usage
+
+Multiple deployment options for different use cases.
 
 #### LangGraph Studio
 
@@ -177,9 +185,9 @@ You can also deploy your own instance of OAP, and make your own custom agents (l
 1. [Deploy Open Agent Platform](https://docs.oap.langchain.com/quickstart)
 2. [Add Deep Researcher to OAP](https://docs.oap.langchain.com/setup/agents)
 
-### Updates 🔥
-
 ### Legacy Implementations 🏛️
+
+Read about the evolution from our original implementations to the current version in our [blog post](https://rlancemartin.github.io/2025/07/30/bitter_lesson/).
 
 The `src/legacy/` folder contains two earlier implementations that provide alternative approaches to automated research:
 
@@ -194,19 +202,3 @@ The `src/legacy/` folder contains two earlier implementations that provide alter
 - **Parallel Processing**: Multiple researchers work simultaneously
 - **Speed Optimized**: Faster report generation through concurrency
 - **MCP Support**: Extensive Model Context Protocol integration
-
-#### Legacy Implementation Default Models
-
-The legacy implementations use the following default models:
-
-**Multi-Agent Implementation:**
-- **Supervisor Model**: `anthropic:claude-sonnet-4-20250514`
-- **Researcher Model**: `anthropic:claude-sonnet-4-20250514`
-- **Summarization Model**: `openai:gpt-4.1`
-
-**Workflow Implementation:**
-- **Planner Model**: `anthropic:claude-3-7-sonnet-latest`
-- **Writer Model**: `openai:gpt-4.1`
-- **Summarization Model**: `openai:gpt-4.1`
-
-See `src/legacy/legacy.md` for detailed documentation, configuration options, and usage examples for both legacy implementations.
