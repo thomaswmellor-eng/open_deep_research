@@ -40,7 +40,8 @@ from open_deep_research.utils import (
     anthropic_websearch_called,
     remove_up_to_last_ai_message,
     get_api_key_for_model,
-    get_notes_from_tool_calls
+    get_notes_from_tool_calls,
+    get_model_config_with_azure_fallback
 )
 
 # Initialize a configurable model that we will use throughout the agent
@@ -75,14 +76,11 @@ async def clarify_with_user(state: AgentState, config: RunnableConfig) -> Comman
     if not configurable.allow_clarification:
         return Command(goto="write_research_brief")
     messages = state["messages"]
-    model_config = {
-        "model": configurable.research_model,
-        "max_tokens": configurable.research_model_max_tokens,
-        "api_key": get_api_key_for_model(configurable.research_model, config),
-        "azure_endpoint": os.getenv("AZURE_OPENAI_ENDPOINT"),
-        "api_version": os.getenv("OPENAI_API_VERSION"),
-        "tags": ["langsmith:nostream"]
-    }
+    model_config = get_model_config_with_azure_fallback(
+        configurable.research_model,
+        configurable.research_model_max_tokens,
+        config
+    )
     model = configurable_model.with_structured_output(ClarifyWithUser).with_retry(stop_after_attempt=configurable.max_structured_output_retries).with_config(model_config)
     response = await model.ainvoke([HumanMessage(content=clarify_with_user_instructions.format(messages=get_buffer_string(messages), date=get_today_str()))])
     
@@ -109,12 +107,11 @@ Now, let me ask you: {response.question}
 
 async def write_research_brief(state: AgentState, config: RunnableConfig)-> Command[Literal["research_supervisor"]]:
     configurable = Configuration.from_runnable_config(config)
-    research_model_config = {
-        "model": configurable.research_model,
-        "max_tokens": configurable.research_model_max_tokens,
-        "api_key": get_api_key_for_model(configurable.research_model, config),
-        "tags": ["langsmith:nostream"]
-    }
+    research_model_config = get_model_config_with_azure_fallback(
+        configurable.research_model,
+        configurable.research_model_max_tokens,
+        config
+    )
     research_model = configurable_model.with_structured_output(ResearchQuestion).with_retry(stop_after_attempt=configurable.max_structured_output_retries).with_config(research_model_config)
     response = await research_model.ainvoke([HumanMessage(content=transform_messages_into_research_topic_prompt.format(
         messages=get_buffer_string(state.get("messages", [])),
@@ -140,14 +137,11 @@ async def write_research_brief(state: AgentState, config: RunnableConfig)-> Comm
 
 async def supervisor(state: SupervisorState, config: RunnableConfig) -> Command[Literal["supervisor_tools"]]:
     configurable = Configuration.from_runnable_config(config)
-    research_model_config = {
-        "model": configurable.research_model,
-        "max_tokens": configurable.research_model_max_tokens,
-        "api_key": get_api_key_for_model(configurable.research_model, config),
-        "azure_endpoint": os.getenv("AZURE_OPENAI_ENDPOINT"),
-        "api_version": os.getenv("OPENAI_API_VERSION"),
-        "tags": ["langsmith:nostream"]
-    }
+    research_model_config = get_model_config_with_azure_fallback(
+        configurable.research_model,
+        configurable.research_model_max_tokens,
+        config
+    )
     lead_researcher_tools = [ConductResearch, ResearchComplete]
     research_model = configurable_model.bind_tools(lead_researcher_tools).with_retry(stop_after_attempt=configurable.max_structured_output_retries).with_config(research_model_config)
     supervisor_messages = state.get("supervisor_messages", [])
@@ -243,14 +237,11 @@ async def researcher(state: ResearcherState, config: RunnableConfig) -> Command[
     tools = await get_all_tools(config)
     if len(tools) == 0:
         raise ValueError("No tools found to conduct research: Please configure either your search API or add MCP tools to your configuration.")
-    research_model_config = {
-        "model": configurable.research_model,
-        "max_tokens": configurable.research_model_max_tokens,
-        "api_key": get_api_key_for_model(configurable.research_model, config),
-        "azure_endpoint": os.getenv("AZURE_OPENAI_ENDPOINT"),
-        "api_version": os.getenv("OPENAI_API_VERSION"),
-        "tags": ["langsmith:nostream"]
-    }
+    research_model_config = get_model_config_with_azure_fallback(
+        configurable.research_model,
+        configurable.research_model_max_tokens,
+        config
+    )
     researcher_system_prompt = research_system_prompt.format(mcp_prompt=configurable.mcp_prompt or "", date=get_today_str())
     research_model = configurable_model.bind_tools(tools).with_retry(stop_after_attempt=configurable.max_structured_output_retries).with_config(research_model_config)
     response = await research_model.ainvoke([SystemMessage(content=researcher_system_prompt)] + researcher_messages)
@@ -311,14 +302,12 @@ async def researcher_tools(state: ResearcherState, config: RunnableConfig) -> Co
 async def compress_research(state: ResearcherState, config: RunnableConfig):
     configurable = Configuration.from_runnable_config(config)
     synthesis_attempts = 0
-    synthesizer_model = configurable_model.with_config({
-        "model": configurable.compression_model,
-        "max_tokens": configurable.compression_model_max_tokens,
-        "api_key": get_api_key_for_model(configurable.compression_model, config),
-        "azure_endpoint": os.getenv("AZURE_OPENAI_ENDPOINT"),
-        "api_version": os.getenv("OPENAI_API_VERSION"),
-        "tags": ["langsmith:nostream"]
-    })
+    compression_model_config = get_model_config_with_azure_fallback(
+        configurable.compression_model,
+        configurable.compression_model_max_tokens,
+        config
+    )
+    synthesizer_model = configurable_model.with_config(compression_model_config)
     researcher_messages = state.get("researcher_messages", [])
     # Update the system prompt to now focus on compression rather than research.
     researcher_messages.append(HumanMessage(content=compress_research_simple_human_message))
@@ -355,13 +344,11 @@ async def final_report_generation(state: AgentState, config: RunnableConfig):
     notes = state.get("notes", [])
     cleared_state = {"notes": {"type": "override", "value": []},}
     configurable = Configuration.from_runnable_config(config)
-    writer_model_config = {
-        "model": configurable.final_report_model,
-        "max_tokens": configurable.final_report_model_max_tokens,
-        "api_key": get_api_key_for_model(configurable.research_model, config),
-        "azure_endpoint": os.getenv("AZURE_OPENAI_ENDPOINT"),
-        "api_version": os.getenv("OPENAI_API_VERSION"),
-    }
+    writer_model_config = get_model_config_with_azure_fallback(
+        configurable.final_report_model,
+        configurable.final_report_model_max_tokens,
+        config
+    )
     
     findings = "\n".join(notes)
     max_retries = 3
