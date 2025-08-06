@@ -188,6 +188,26 @@ class Configuration(BaseModel):
             }
         }
     )
+    suggestion_model: str = Field(
+        default="azure_openai:gpt-4.1",
+        metadata={
+            "x_oap_ui_config": {
+                "type": "text",
+                "default": "azure_openai:gpt-4.1",
+                "description": "Model for suggesting destinations based on user preferences"
+            }
+        }
+    )
+    suggestion_model_max_tokens: int = Field(
+        default=8192,
+        metadata={
+            "x_oap_ui_config": {
+                "type": "number",
+                "default": 8192,
+                "description": "Maximum output tokens for suggestion model"
+            }
+        }
+    )
     # MCP server configuration
     mcp_config: Optional[MCPConfig] = Field(
         default=None,

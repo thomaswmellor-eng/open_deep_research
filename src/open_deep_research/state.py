@@ -1,4 +1,4 @@
-from typing import Annotated, Optional
+from typing import Annotated, Optional, List
 from pydantic import BaseModel, Field
 import operator
 from langgraph.graph import MessagesState
@@ -26,15 +26,39 @@ class ClarifyWithUser(BaseModel):
         description="Whether the user needs to be asked a clarifying question.",
     )
     question: str = Field(
-        description="A question to ask the user to clarify the report scope",
+        description="A question to ask the user to clarify their travel preferences",
     )
     verification: str = Field(
         description="Verify message that we will start research after the user has provided the necessary information.",
+    )
+    travel_profile_complete: bool = Field(
+        description="Whether we have gathered all necessary travel information from the user",
     )
 
 class ResearchQuestion(BaseModel):
     research_brief: str = Field(
         description="A research question that will be used to guide the research.",
+    )
+
+class DestinationSuggestion(BaseModel):
+    reasoning: str = Field(
+        description="Natural, conversational explanation of suggested destinations and why they match the user's preferences. Include destinations, brief reasoning, and any relevant highlights in a flowing, friendly tone.",
+    )
+    suggested_destinations: List[str] = Field(
+        description="List of suggested destinations that match the user's preferences",
+        default_factory=list
+    )
+    budget_considerations: str = Field(
+        description="Budget considerations for each suggested destination",
+        default=""
+    )
+    cultural_highlights: str = Field(
+        description="Cultural characteristics and highlights of suggested destinations",
+        default=""
+    )
+    best_time_to_visit: str = Field(
+        description="Best time to visit each suggested destination",
+        default=""
     )
 
 
@@ -57,6 +81,7 @@ class AgentState(MessagesState):
     raw_notes: Annotated[list[str], override_reducer] = []
     notes: Annotated[list[str], override_reducer] = []
     final_report: str
+    travel_profile: Annotated[dict, override_reducer] = {}
 
 class SupervisorState(TypedDict):
     supervisor_messages: Annotated[list[MessageLikeRepresentation], override_reducer]

@@ -110,6 +110,269 @@ async def tavily_search_async(search_queries, max_results: int = 5, topic: Liter
     search_docs = await asyncio.gather(*search_tasks)
     return search_docs
 
+
+##########################
+# Travel-Specific Tools
+##########################
+
+@tool(description="Get weather information for a specific location and date range. Useful for travel planning.")
+async def get_weather_info(
+    location: str,
+    start_date: str,
+    end_date: str,
+    config: RunnableConfig = None
+) -> str:
+    """
+    Get weather information for travel planning.
+    
+    Args:
+        location (str): City name or coordinates (lat,lon)
+        start_date (str): Start date in YYYY-MM-DD format
+        end_date (str): End date in YYYY-MM-DD format
+        
+    Returns:
+        str: Weather information for the location and date range
+    """
+    try:
+        from meteostat import Point, Daily
+        from datetime import datetime
+        
+        # Parse dates
+        start = datetime.strptime(start_date, "%Y-%m-%d")
+        end = datetime.strptime(end_date, "%Y-%m-%d")
+        
+        # Try to get coordinates from location string
+        if "," in location:
+            # Assume it's already coordinates
+            lat, lon = map(float, location.split(","))
+            point = Point(lat, lon)
+        else:
+            # For now, use a simple approach - you might want to add geocoding
+            # This is a placeholder - in production you'd use a geocoding service
+            return f"Weather data requested for {location} from {start_date} to {end_date}. Please provide coordinates (lat,lon) for accurate weather data."
+        
+        # Get daily data
+        data = Daily(point, start, end)
+        data = data.fetch()
+        
+        if data.empty:
+            return f"No weather data available for {location} from {start_date} to {end_date}"
+        
+        # Format the weather data
+        weather_info = f"Weather forecast for {location} ({start_date} to {end_date}):\n\n"
+        
+        for date, row in data.iterrows():
+            temp_avg = row.get('tavg', 'N/A')
+            temp_min = row.get('tmin', 'N/A')
+            temp_max = row.get('tmax', 'N/A')
+            precip = row.get('prcp', 'N/A')
+            
+            weather_info += f"{date.strftime('%Y-%m-%d')}: "
+            weather_info += f"Avg: {temp_avg}°C, Min: {temp_min}°C, Max: {temp_max}°C, "
+            weather_info += f"Precipitation: {precip}mm\n"
+        
+        return weather_info
+        
+    except ImportError:
+        return "Meteostat library not available. Please install it with: pip install meteostat"
+    except Exception as e:
+        return f"Error getting weather data: {str(e)}"
+
+
+@tool(description="Convert currency between different currencies using current exchange rates.")
+async def convert_currency(
+    amount: float,
+    from_currency: str,
+    to_currency: str,
+    config: RunnableConfig = None
+) -> str:
+    """
+    Convert currency between different currencies.
+    
+    Args:
+        amount (float): Amount to convert
+        from_currency (str): Source currency code (e.g., USD, EUR, GBP)
+        to_currency (str): Target currency code (e.g., USD, EUR, GBP)
+        
+    Returns:
+        str: Conversion result with current exchange rate
+    """
+    try:
+        exchange_api_key = os.getenv("API_EXCHANGE")
+        if not exchange_api_key:
+            return "Exchange rate API key not configured. Please set API_EXCHANGE environment variable."
+        
+        url = f"https://api.exchangerate-api.com/v4/latest/{from_currency.upper()}"
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    rates = data.get('rates', {})
+                    
+                    if to_currency.upper() in rates:
+                        rate = rates[to_currency.upper()]
+                        converted_amount = amount * rate
+                        return f"{amount} {from_currency.upper()} = {converted_amount:.2f} {to_currency.upper()} (Rate: 1 {from_currency.upper()} = {rate:.4f} {to_currency.upper()})"
+                    else:
+                        return f"Currency {to_currency.upper()} not found in available rates"
+                else:
+                    return f"Error fetching exchange rates: HTTP {response.status}"
+                    
+    except Exception as e:
+        return f"Error converting currency: {str(e)}"
+
+
+@tool(description="Search for local transportation options and travel advice for a specific destination.")
+async def search_local_transport(
+    destination: str,
+    config: RunnableConfig = None
+) -> str:
+    """
+    Search for local transportation options and travel advice.
+    
+    Args:
+        destination (str): Destination city or country
+        
+    Returns:
+        str: Information about local transportation options
+    """
+    try:
+        # Use Tavily search for local transportation information
+        search_queries = [
+            f"local transportation options {destination}",
+            f"public transport {destination}",
+            f"how to get around {destination}",
+            f"transportation tips {destination}",
+            f"metro bus train {destination}"
+        ]
+        
+        search_results = await tavily_search_async(
+            search_queries,
+            max_results=3,
+            topic="general",
+            include_raw_content=True,
+            config=config
+        )
+        
+        transport_info = f"Local transportation information for {destination}:\n\n"
+        
+        for response in search_results:
+            transport_info += f"Query: {response['query']}\n"
+            for result in response['results']:
+                transport_info += f"- {result['title']}\n"
+                transport_info += f"  URL: {result['url']}\n"
+                transport_info += f"  Summary: {result['content'][:200]}...\n\n"
+        
+        return transport_info
+        
+    except Exception as e:
+        return f"Error searching for transportation information: {str(e)}"
+
+
+@tool(description="Get intelligent destination suggestions based on user preferences and travel style.")
+async def get_destination_suggestions_tool(
+    user_preferences: str,
+    budget_range: str = "moderate",
+    travel_style: str = "general",
+    config: RunnableConfig = None
+) -> str:
+    """
+    Get destination suggestions based on user preferences.
+    
+    Args:
+        user_preferences (str): Description of user's travel preferences, interests, and requirements
+        budget_range (str): Budget level (budget, moderate, luxury)
+        travel_style (str): Type of travel (adventure, relaxation, cultural, etc.)
+        
+    Returns:
+        str: Suggested destinations with reasoning and details
+    """
+    try:
+        # Use Tavily search for destination suggestions
+        search_queries = [
+            f"best destinations for {travel_style} travel {budget_range} budget",
+            f"top travel destinations for {user_preferences}",
+            f"hidden gem destinations {travel_style} {budget_range}",
+            f"best countries to visit for {user_preferences}",
+            f"travel destinations matching {user_preferences} preferences"
+        ]
+        
+        search_results = await tavily_search_async(
+            search_queries,
+            max_results=3,
+            topic="general",
+            include_raw_content=True,
+            config=config
+        )
+        
+        suggestions = f"Destination suggestions for {travel_style} travel with {budget_range} budget:\n\n"
+        suggestions += f"**User Preferences:** {user_preferences}\n\n"
+        
+        for response in search_results:
+            suggestions += f"Query: {response['query']}\n"
+            for result in response['results']:
+                suggestions += f"- {result['title']}\n"
+                suggestions += f"  URL: {result['url']}\n"
+                suggestions += f"  Summary: {result['content'][:200]}...\n\n"
+        
+        return suggestions
+        
+    except Exception as e:
+        return f"Error getting destination suggestions: {str(e)}"
+
+
+@tool(description="Search for travel recommendations and tips for a specific destination.")
+async def search_travel_recommendations(
+    destination: str,
+    travel_type: str = "general",
+    budget: str = "moderate",
+    config: RunnableConfig = None
+) -> str:
+    """
+    Search for travel recommendations and tips.
+    
+    Args:
+        destination (str): Destination city or country
+        travel_type (str): Type of travel (couple, family, solo, business, etc.)
+        budget (str): Budget level (budget, moderate, luxury)
+        
+    Returns:
+        str: Travel recommendations and tips
+    """
+    try:
+        # Use Tavily search for travel recommendations
+        search_queries = [
+            f"best things to do {destination} {travel_type}",
+            f"travel tips {destination} {budget}",
+            f"must see attractions {destination}",
+            f"local food restaurants {destination}",
+            f"hidden gems {destination}",
+            f"travel itinerary {destination} {travel_type}"
+        ]
+        
+        search_results = await tavily_search_async(
+            search_queries,
+            max_results=4,
+            topic="general",
+            include_raw_content=True,
+            config=config
+        )
+        
+        recommendations = f"Travel recommendations for {destination} ({travel_type} travel, {budget} budget):\n\n"
+        
+        for response in search_results:
+            recommendations += f"Query: {response['query']}\n"
+            for result in response['results']:
+                recommendations += f"- {result['title']}\n"
+                recommendations += f"  URL: {result['url']}\n"
+                recommendations += f"  Summary: {result['content'][:200]}...\n\n"
+        
+        return recommendations
+        
+    except Exception as e:
+        return f"Error searching for travel recommendations: {str(e)}"
+
 async def summarize_webpage(model: BaseChatModel, webpage_content: str) -> str:
     try:
         summary = await asyncio.wait_for(
@@ -293,6 +556,17 @@ async def get_all_tools(config: RunnableConfig):
     configurable = Configuration.from_runnable_config(config)
     search_api = SearchAPI(get_config_value(configurable.search_api))
     tools.extend(await get_search_tool(search_api))
+    
+    # Add travel-specific tools
+    travel_tools = [
+        get_weather_info,
+        convert_currency,
+        search_local_transport,
+        get_destination_suggestions_tool,
+        search_travel_recommendations
+    ]
+    tools.extend(travel_tools)
+    
     existing_tool_names = {tool.name if hasattr(tool, "name") else tool.get("name", "web_search") for tool in tools}
     mcp_tools = await load_mcp_tools(config, existing_tool_names)
     tools.extend(mcp_tools)
@@ -405,6 +679,7 @@ MODEL_TOKEN_LIMITS = {
     "azure_openai:gpt-4.1-mini": 1047576,
     "azure_openai:gpt-4.1-nano": 1047576,
     "azure_openai:gpt-4.1": 1047576,
+    "azure_openai:gpt-4.1-suggestion": 1047576,
     "openai:gpt-4o-mini": 128000,
     "openai:gpt-4o": 128000,
     "openai:o4-mini": 200000,

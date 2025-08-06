@@ -16,6 +16,7 @@ from open_deep_research.state import (
     ResearcherState,
     ClarifyWithUser,
     ResearchQuestion,
+    DestinationSuggestion,
     ConductResearch,
     ResearchComplete,
     ResearcherOutputState
@@ -23,6 +24,7 @@ from open_deep_research.state import (
 from open_deep_research.prompts import (
     clarify_with_user_instructions,
     transform_messages_into_research_topic_prompt,
+    destination_suggestion_prompt,
     research_system_prompt,
     compress_research_system_prompt,
     compress_research_simple_human_message,
@@ -46,6 +48,28 @@ configurable_model = init_chat_model(
     configurable_fields=("model", "max_tokens", "api_key", "azure_endpoint", "api_version"),
 )
 
+async def get_destination_suggestions(state: AgentState, config: RunnableConfig) -> DestinationSuggestion:
+    """Get destination suggestions based on current user information."""
+    configurable = Configuration.from_runnable_config(config)
+    messages = state["messages"]
+    
+    # Extract user information from messages
+    user_info = get_buffer_string(messages)
+    
+    suggestion_model_config = {
+        "model": configurable.suggestion_model,
+        "max_tokens": configurable.suggestion_model_max_tokens,
+        "api_key": get_api_key_for_model(configurable.suggestion_model, config),
+        "azure_endpoint": os.getenv("AZURE_OPENAI_ENDPOINT"),
+        "api_version": os.getenv("OPENAI_API_VERSION"),
+        "tags": ["langsmith:nostream"]
+    }
+    
+    suggestion_model = configurable_model.with_structured_output(DestinationSuggestion).with_retry(stop_after_attempt=configurable.max_structured_output_retries).with_config(suggestion_model_config)
+    
+    response = await suggestion_model.ainvoke([HumanMessage(content=destination_suggestion_prompt.format(user_info=user_info))])
+    return response
+
 async def clarify_with_user(state: AgentState, config: RunnableConfig) -> Command[Literal["write_research_brief", "__end__"]]:
     configurable = Configuration.from_runnable_config(config)
     if not configurable.allow_clarification:
@@ -61,10 +85,26 @@ async def clarify_with_user(state: AgentState, config: RunnableConfig) -> Comman
     }
     model = configurable_model.with_structured_output(ClarifyWithUser).with_retry(stop_after_attempt=configurable.max_structured_output_retries).with_config(model_config)
     response = await model.ainvoke([HumanMessage(content=clarify_with_user_instructions.format(messages=get_buffer_string(messages), date=get_today_str()))])
+    
     if response.need_clarification:
-        return Command(goto=END, update={"messages": [AIMessage(content=response.question)]})
+        # Check if we have enough information to make suggestions
+        if len(messages) >= 2:  # At least one exchange has happened
+            # Get destination suggestions
+            suggestions = await get_destination_suggestions(state, config)
+            suggestion_message = f"""
+{suggestions.reasoning}
+
+Now, let me ask you: {response.question}
+"""
+            return Command(goto=END, update={"messages": [AIMessage(content=suggestion_message)]})
+        else:
+            return Command(goto=END, update={"messages": [AIMessage(content=response.question)]})
     else:
-        return Command(goto="write_research_brief", update={"messages": [AIMessage(content=response.verification)]})
+        # Travel profile is complete, proceed to research
+        return Command(goto="write_research_brief", update={
+            "messages": [AIMessage(content=response.verification)],
+            "travel_profile": {"type": "override", "value": {"complete": True}}
+        })
 
 
 async def write_research_brief(state: AgentState, config: RunnableConfig)-> Command[Literal["research_supervisor"]]:
